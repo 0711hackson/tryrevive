@@ -1,0 +1,421 @@
+/* ============================
+   tryrevive — 主应用
+   页面切换 / APP 管理 / 搜索 / 设置
+   ============================ */
+
+const App = (function() {
+    let userApps = [];
+    let editingMode = false;
+
+    // ========== 页面切换 ==========
+
+    function showAuthPage() {
+        document.getElementById('auth-page').classList.remove('hidden');
+        document.getElementById('questionnaire-page').classList.add('hidden');
+        document.getElementById('home-page').classList.add('hidden');
+        document.body.setAttribute('data-page', 'auth');
+    }
+
+    function showQuestionnairePage() {
+        document.getElementById('auth-page').classList.add('hidden');
+        document.getElementById('questionnaire-page').classList.remove('hidden');
+        document.getElementById('home-page').classList.add('hidden');
+        document.body.setAttribute('data-page', 'questionnaire');
+        Questionnaire.init();
+    }
+
+    function showHomePage() {
+        document.getElementById('auth-page').classList.add('hidden');
+        document.getElementById('questionnaire-page').classList.add('hidden');
+        document.getElementById('home-page').classList.remove('hidden');
+        document.body.setAttribute('data-page', 'home');
+
+        // 应用主题色
+        applyThemeColor();
+
+        // 初始化动画和 APP
+        Animation.init();
+        renderApps();
+    }
+
+    // ========== 主题色 ==========
+
+    function applyThemeColor() {
+        try {
+            const pref = JSON.parse(localStorage.getItem(STORAGE_KEYS.preferences) || '{}');
+            const color = pref.color || '#4a90e2';
+            if (color) {
+                // 生成渐变背景
+                const gradient = `linear-gradient(135deg, #000000 0%, ${hexToRgba(color, 0.12)} 50%, #000000 100%)`;
+                document.body.style.setProperty('--body-gradient', gradient);
+
+                // 设置 accent 颜色
+                document.documentElement.style.setProperty('--accent-color', color);
+                document.documentElement.style.setProperty('--accent-light', lightenColor(color, 20));
+            }
+        } catch (e) {
+            console.warn('应用主题色失败:', e);
+        }
+    }
+
+    function hexToRgba(hex, alpha) {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function lightenColor(hex, percent) {
+        const num = parseInt(hex.slice(1), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = Math.min(255, (num >> 16) + amt);
+        const G = Math.min(255, (num >> 8 & 0x00FF) + amt);
+        const B = Math.min(255, (num & 0x0000FF) + amt);
+        return `#${(1 << 24 | R << 16 | G << 8 | B).toString(16).slice(1)}`;
+    }
+
+    // ========== 用户登录 / 注册 ==========
+
+    function handleLogin(e) {
+        e.preventDefault();
+        const username = document.getElementById('login-username').value.trim();
+        const password = document.getElementById('login-password').value;
+
+        if (!username || !password) return;
+
+        // 保存用户信息（简化版，仅前端）
+        try {
+            localStorage.setItem(STORAGE_KEYS.user, JSON.stringify({
+                username: username,
+                loggedInAt: new Date().toISOString()
+            }));
+        } catch (e) {}
+
+        // 检查是否做过问卷
+        const done = localStorage.getItem(STORAGE_KEYS.questionnaireDone);
+        if (done) {
+            showHomePage();
+        } else {
+            showQuestionnairePage();
+        }
+    }
+
+    function handleRegister(e) {
+        e.preventDefault();
+        const username = document.getElementById('register-username').value.trim();
+        const password = document.getElementById('register-password').value;
+
+        if (!username || !password) return;
+
+        try {
+            localStorage.setItem(STORAGE_KEYS.user, JSON.stringify({
+                username: username,
+                registeredAt: new Date().toISOString()
+            }));
+        } catch (e) {}
+
+        // 新用户直接进入问卷
+        showQuestionnairePage();
+    }
+
+    // ========== APP 管理 ==========
+
+    function loadApps() {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEYS.apps);
+            if (saved) {
+                userApps = JSON.parse(saved);
+            } else {
+                // 首次加载，使用默认 APP
+                userApps = DEFAULT_APP_IDS.map(id => {
+                    const app = PRESET_APPS.find(a => a.id === id);
+                    return { ...app, addedAt: new Date().toISOString() };
+                });
+                saveApps();
+            }
+        } catch (e) {
+            userApps = [];
+        }
+    }
+
+    function saveApps() {
+        try {
+            localStorage.setItem(STORAGE_KEYS.apps, JSON.stringify(userApps));
+        } catch (e) {}
+    }
+
+    function renderApps() {
+        loadApps();
+        const grid = document.getElementById('apps-grid');
+        if (!grid) return;
+
+        grid.innerHTML = '';
+        userApps.forEach((app, index) => {
+            const item = document.createElement('div');
+            item.className = 'app-item';
+            item.draggable = editingMode;
+            item.dataset.index = index;
+            item.dataset.id = app.id;
+            item.innerHTML = `
+                <div class="app-icon" style="background: ${app.bg || '#333'}">${app.icon || app.name.charAt(0)}</div>
+                <div class="app-name">${app.name}</div>
+                <button class="app-remove" data-index="${index}" title="移除">×</button>
+            `;
+
+            // 点击打开 APP
+            item.addEventListener('click', (e) => {
+                if (editingMode) return;
+                if (app.url) {
+                    window.open(app.url, '_blank');
+                }
+            });
+
+            // 拖拽事件
+            if (editingMode) {
+                item.addEventListener('dragstart', handleDragStart);
+                item.addEventListener('dragover', handleDragOver);
+                item.addEventListener('drop', handleDrop);
+                item.addEventListener('dragend', handleDragEnd);
+            }
+
+            grid.appendChild(item);
+        });
+
+        // 绑定移除按钮
+        document.querySelectorAll('.app-remove').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const idx = parseInt(btn.dataset.index);
+                removeApp(idx);
+            });
+        });
+    }
+
+    function removeApp(index) {
+        if (index >= 0 && index < userApps.length) {
+            userApps.splice(index, 1);
+            saveApps();
+            renderApps();
+        }
+    }
+
+    function addApp(appId) {
+        const app = PRESET_APPS.find(a => a.id === appId);
+        if (app && !userApps.find(a => a.id === appId)) {
+            userApps.push({ ...app, addedAt: new Date().toISOString() });
+            saveApps();
+            renderApps();
+        }
+    }
+
+    function toggleEditMode() {
+        editingMode = !editingMode;
+        document.body.setAttribute('data-editing', editingMode);
+        const btn = document.getElementById('edit-apps-btn');
+        if (btn) {
+            btn.classList.toggle('editing', editingMode);
+            btn.querySelector('span:last-child') ? null : null;
+        }
+        renderApps();
+    }
+
+    // ========== 拖拽排序 ==========
+
+    let draggedIndex = null;
+
+    function handleDragStart(e) {
+        draggedIndex = parseInt(e.currentTarget.dataset.index);
+        e.currentTarget.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        e.currentTarget.classList.add('drag-over');
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        const targetIndex = parseInt(e.currentTarget.dataset.index);
+        e.currentTarget.classList.remove('drag-over');
+
+        if (draggedIndex !== null && draggedIndex !== targetIndex) {
+            // 交换位置
+            const [removed] = userApps.splice(draggedIndex, 1);
+            userApps.splice(targetIndex, 0, removed);
+            saveApps();
+            renderApps();
+        }
+        draggedIndex = null;
+    }
+
+    function handleDragEnd(e) {
+        document.querySelectorAll('.app-item').forEach(item => {
+            item.classList.remove('dragging', 'drag-over');
+        });
+        draggedIndex = null;
+    }
+
+    // ========== 搜索功能 ==========
+
+    function handleSearch() {
+        const platform = document.getElementById('platform-select').value;
+        const keyword = document.getElementById('search-input').value.trim();
+
+        if (!keyword) return;
+
+        const baseUrl = SEARCH_URLS[platform] || SEARCH_URLS.web;
+        const searchUrl = baseUrl + encodeURIComponent(keyword);
+
+        window.open(searchUrl, '_blank');
+    }
+
+    // ========== 设置面板 ==========
+
+    function openSettings() {
+        document.getElementById('settings-panel').classList.remove('hidden');
+
+        // 高亮当前颜色
+        try {
+            const pref = JSON.parse(localStorage.getItem(STORAGE_KEYS.preferences) || '{}');
+            document.querySelectorAll('.color-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.color === pref.color);
+            });
+
+            const mbtiSelect = document.getElementById('mbti-select');
+            if (mbtiSelect && pref.mbti) {
+                mbtiSelect.value = pref.mbti;
+            }
+        } catch (e) {}
+    }
+
+    function closeSettings() {
+        document.getElementById('settings-panel').classList.add('hidden');
+    }
+
+    function handleColorSelect(color) {
+        try {
+            const pref = JSON.parse(localStorage.getItem(STORAGE_KEYS.preferences) || '{}');
+            pref.color = color;
+            localStorage.setItem(STORAGE_KEYS.preferences, JSON.stringify(pref));
+
+            document.querySelectorAll('.color-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.color === color);
+            });
+
+            applyThemeColor();
+        } catch (e) {}
+    }
+
+    function handleMBTISelect(mbti) {
+        try {
+            const pref = JSON.parse(localStorage.getItem(STORAGE_KEYS.preferences) || '{}');
+            pref.mbti = mbti;
+            localStorage.setItem(STORAGE_KEYS.preferences, JSON.stringify(pref));
+        } catch (e) {}
+    }
+
+    function handleReset() {
+        if (!confirm('确定要重置所有数据吗？这将清除你的偏好设置、用户信息和 APP 列表。')) {
+            return;
+        }
+
+        Object.values(STORAGE_KEYS).forEach(key => {
+            try { localStorage.removeItem(key); } catch (e) {}
+        });
+
+        location.reload();
+    }
+
+    // ========== 初始化 ==========
+
+    function init() {
+        // 登录/注册 Tab 切换
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                const tab = btn.dataset.tab;
+                document.getElementById('login-form').classList.toggle('hidden', tab !== 'login');
+                document.getElementById('register-form').classList.toggle('hidden', tab !== 'register');
+            });
+        });
+
+        // 登录/注册表单提交
+        document.getElementById('login-form').addEventListener('submit', handleLogin);
+        document.getElementById('register-form').addEventListener('submit', handleRegister);
+
+        // 问卷导航
+        document.getElementById('prev-btn').addEventListener('click', () => Questionnaire.prev());
+        document.getElementById('next-btn').addEventListener('click', () => Questionnaire.next());
+
+        // 搜索
+        document.getElementById('search-btn').addEventListener('click', handleSearch);
+        document.getElementById('search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleSearch();
+        });
+
+        // 设置
+        document.getElementById('settings-btn').addEventListener('click', openSettings);
+        document.getElementById('close-settings').addEventListener('click', closeSettings);
+        document.getElementById('settings-panel').addEventListener('click', (e) => {
+            if (e.target.id === 'settings-panel') closeSettings();
+        });
+
+        // 颜色选择
+        document.querySelectorAll('.color-btn').forEach(btn => {
+            btn.addEventListener('click', () => handleColorSelect(btn.dataset.color));
+        });
+
+        // MBTI 选择
+        document.getElementById('mbti-select').addEventListener('change', (e) => {
+            handleMBTISelect(e.target.value);
+        });
+
+        // 重置
+        document.getElementById('reset-btn').addEventListener('click', handleReset);
+
+        // APP 编辑
+        document.getElementById('edit-apps-btn').addEventListener('click', toggleEditMode);
+
+        // 添加 APP
+        document.getElementById('add-app-btn').addEventListener('click', () => {
+            const available = PRESET_APPS.filter(a => !userApps.find(ua => ua.id === a.id));
+            if (available.length === 0) {
+                alert('已添加所有可用的 APP');
+                return;
+            }
+            const appNames = available.map((a, i) => `${i + 1}. ${a.name}`).join('\n');
+            const choice = prompt(`选择要添加的 APP（输入编号）：\n${appNames}`);
+            if (choice) {
+                const idx = parseInt(choice) - 1;
+                if (idx >= 0 && idx < available.length) {
+                    addApp(available[idx].id);
+                }
+            }
+        });
+
+        // 检查登录状态
+        const user = localStorage.getItem(STORAGE_KEYS.user);
+        const questionnaireDone = localStorage.getItem(STORAGE_KEYS.questionnaireDone);
+
+        if (user && questionnaireDone) {
+            showHomePage();
+        } else if (user) {
+            showQuestionnairePage();
+        } else {
+            showAuthPage();
+        }
+    }
+
+    return {
+        init,
+        showAuthPage,
+        showHomePage,
+        showQuestionnairePage
+    };
+})();
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', App.init);
