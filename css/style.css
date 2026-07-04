@@ -521,23 +521,348 @@ input, select {
     border-color: var(--border-glass-strong);
 }
 
-/* ---- 火柴人动画区 ---- */
+/* ---- 火柴人动画区（俯视视角 · 无边框） ---- */
 .stickman-section {
     flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 20px;
+    padding: 0;
     position: relative;
 }
 
-.status-indicator {
+/* 俯视场景舞台（无边框，全宽） */
+.scene-stage {
+    position: relative;
+    width: 100%;
+    max-width: 900px;
+    height: 420px;
+    overflow: hidden;
+    cursor: crosshair;
+    /* 背景由 JS 根据用户偏好色动态设置 --scene-bg */
+    background: var(--scene-bg, radial-gradient(ellipse at 50% 20%, rgba(74, 144, 226, 0.12) 0%, transparent 60%),
+        linear-gradient(180deg, #050510 0%, #0a0a20 30%, #0d1228 60%, #0a0a18 100%));
+    transition: background 1.5s ease;
+}
+
+/* 水波纹层（鼠标移动触发，覆盖整个页面） */
+.ripple-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.ripple {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    border: var(--ripple-border-width, 2px) solid var(--ripple-color, rgba(74, 144, 226, 0.4));
+    transform: translate(-50%, -50%);
+    animation: ripple-spread var(--ripple-duration, 2s) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    pointer-events: none;
+    opacity: var(--ripple-opacity, 0.6);
+}
+
+@keyframes ripple-spread {
+    0% {
+        width: 6px;
+        height: 6px;
+        opacity: var(--ripple-opacity, 0.6);
+        border-width: var(--ripple-border-width, 2px);
+    }
+    100% {
+        width: var(--ripple-max-size, 200px);
+        height: var(--ripple-max-size, 200px);
+        opacity: 0;
+        border-width: 0.5px;
+    }
+}
+
+/* 水滩层（跟随火柴人位置） */
+.puddle-layer {
+    position: absolute;
+    top: 60%;
+    left: 50%;
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 3;
+}
+
+.puddle {
+    width: 20px;
+    height: 6px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(100, 180, 255, 0.4) 0%, rgba(74, 144, 226, 0.15) 60%, transparent 100%);
+    transition: width 0.8s ease, height 0.8s ease, opacity 0.8s ease;
+    filter: blur(1px);
+}
+
+.puddle.ripple-expand {
+    animation: puddle-ripple 0.6s ease-out;
+}
+
+@keyframes puddle-ripple {
+    0% { box-shadow: 0 0 0 0 rgba(100, 180, 255, 0.3); }
+    100% { box-shadow: 0 0 0 20px rgba(100, 180, 255, 0); }
+}
+
+.puddle.fade-out {
+    opacity: 0 !important;
+    transform: scale(0.5);
+    transition: all 0.8s ease;
+}
+
+/* 火柴人容器（画面正中央） */
+.stickman-wrapper {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 120px;
+    height: 160px;
+    z-index: 5;
+    transition: filter 0.8s ease;
+}
+
+/* 圆嘟嘟火柴人 SVG 样式 */
+.stickman {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.stickman .head,
+.stickman .body,
+.stickman .arm,
+.stickman .leg {
+    fill: var(--stickman-color, #8a8a8a);
+    stroke: none;
+    transition: fill 1.2s ease, opacity 1s ease;
+}
+
+.stickman .shadow {
+    fill: rgba(0, 0, 0, 0.3);
+    stroke: none;
+    transition: all 1s ease;
+}
+
+.stickman .tear {
+    fill: rgba(100, 180, 255, 0.7);
+    stroke: none;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+}
+
+/* 眼泪滴落 DOM 层 */
+.tear-drop-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 6;
+}
+
+.tear-drop {
+    position: absolute;
+    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+    background: radial-gradient(ellipse at 40% 30%, rgba(140, 200, 255, 0.9), rgba(74, 144, 226, 0.6));
+    box-shadow: 0 0 6px rgba(100, 180, 255, 0.3);
+    opacity: 0;
+    transform: translateX(-50%);
+    transition: opacity 0.2s ease;
+}
+
+.tear-drop.falling {
+    opacity: 1;
+    animation: tear-fall 1.4s cubic-bezier(0.4, 0, 0.8, 1) forwards;
+}
+
+@keyframes tear-fall {
+    0% {
+        top: 38%;
+        opacity: 0;
+        transform: translateX(-50%) scale(0.5);
+    }
+    15% {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+    }
+    85% {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+    }
+    100% {
+        top: 88%;
+        opacity: 0;
+        transform: translateX(-50%) scale(0.3);
+    }
+}
+
+/* ============================
+   状态：黑色（娱乐过度）
+   ============================ */
+body[data-state="black"] .stickman .head,
+body[data-state="black"] .stickman .body,
+body[data-state="black"] .stickman .arm,
+body[data-state="black"] .stickman .leg {
+    fill: #1a1a1a;
+    opacity: 0.88;
+}
+
+body[data-state="black"] .stickman .shadow {
+    fill: rgba(0, 0, 0, 0.5);
+}
+
+body[data-state="black"] .stickman .tear {
+    opacity: 0.8;
+}
+
+body[data-state="black"] .stickman-wrapper {
+    animation: walk-heavy 2.4s ease-in-out infinite;
+    filter: drop-shadow(0 0 12px rgba(0, 0, 0, 0.6));
+}
+
+body[data-state="black"] .leg-left {
+    animation: leg-heavy-left 2.4s ease-in-out infinite;
+    transform-origin: 42px 100px;
+}
+body[data-state="black"] .leg-right {
+    animation: leg-heavy-right 2.4s ease-in-out infinite;
+    transform-origin: 58px 100px;
+}
+body[data-state="black"] .arm-left {
+    animation: arm-heavy-left 2.4s ease-in-out infinite;
+    transform-origin: 32px 70px;
+}
+body[data-state="black"] .arm-right {
+    animation: arm-heavy-right 2.4s ease-in-out infinite;
+    transform-origin: 68px 70px;
+}
+body[data-state="black"] .stickman {
+    animation: body-sink 2.4s ease-in-out infinite;
+}
+
+/* ============================
+   状态：灰色（疗愈中）
+   ============================ */
+body[data-state="gray"] .stickman .head,
+body[data-state="gray"] .stickman .body,
+body[data-state="gray"] .stickman .arm,
+body[data-state="gray"] .stickman .leg {
+    fill: #8a8a8a;
+    opacity: 0.82;
+}
+
+body[data-state="gray"] .stickman .shadow {
+    fill: rgba(0, 0, 0, 0.25);
+}
+
+body[data-state="gray"] .stickman-wrapper {
+    animation: walk-normal 1.3s ease-in-out infinite;
+    filter: drop-shadow(0 0 8px rgba(120, 120, 120, 0.3));
+}
+
+body[data-state="gray"] .leg-left {
+    animation: leg-normal-left 1.3s ease-in-out infinite;
+    transform-origin: 42px 100px;
+}
+body[data-state="gray"] .leg-right {
+    animation: leg-normal-right 1.3s ease-in-out infinite;
+    transform-origin: 58px 100px;
+}
+body[data-state="gray"] .arm-left {
+    animation: arm-normal-left 1.3s ease-in-out infinite;
+    transform-origin: 32px 70px;
+}
+body[data-state="gray"] .arm-right {
+    animation: arm-normal-right 1.3s ease-in-out infinite;
+    transform-origin: 68px 70px;
+}
+
+/* ============================
+   状态：白色（健康状态）
+   ============================ */
+body[data-state="white"] .stickman .head,
+body[data-state="white"] .stickman .body,
+body[data-state="white"] .stickman .arm,
+body[data-state="white"] .stickman .leg {
+    fill: #ffffff;
+    opacity: 0.92;
+}
+
+body[data-state="white"] .stickman .shadow {
+    fill: rgba(255, 255, 255, 0.1);
+}
+
+body[data-state="white"] .stickman-wrapper {
+    animation: walk-jump 0.85s ease-in-out infinite;
+    filter: drop-shadow(0 0 16px rgba(255, 255, 255, 0.35));
+}
+
+body[data-state="white"] .leg-left {
+    animation: leg-jump-left 0.85s ease-in-out infinite;
+    transform-origin: 42px 100px;
+}
+body[data-state="white"] .leg-right {
+    animation: leg-jump-right 0.85s ease-in-out infinite;
+    transform-origin: 58px 100px;
+}
+body[data-state="white"] .arm-left {
+    animation: arm-jump-left 0.85s ease-in-out infinite;
+    transform-origin: 32px 70px;
+}
+body[data-state="white"] .arm-right {
+    animation: arm-jump-right 0.85s ease-in-out infinite;
+    transform-origin: 68px 70px;
+}
+body[data-state="white"] .stickman {
+    animation: body-bounce 0.85s ease-in-out infinite;
+}
+
+/* ============================
+   状态文字
+   ============================ */
+.status-message {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    text-align: center;
+    z-index: 8;
+    pointer-events: none;
+}
+
+.message-text {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 300;
+    line-height: 1.6;
+    letter-spacing: 0.03em;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+}
+
+body[data-state="black"] .message-text { color: rgba(255, 255, 255, 0.4); }
+body[data-state="gray"] .message-text { color: rgba(255, 255, 255, 0.55); }
+body[data-state="white"] .message-text { color: rgba(255, 255, 255, 0.85); }
+
+/* ============================
+   状态切换按钮
+   ============================ */
+.state-switcher {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 30px;
-    padding: 8px 18px;
+    gap: 8px;
+    margin-top: 20px;
+    padding: 6px;
     background: var(--bg-glass);
     border: 1px solid var(--border-glass);
     border-radius: var(--radius-pill);
@@ -545,230 +870,49 @@ input, select {
     -webkit-backdrop-filter: blur(20px);
 }
 
-.status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--state-gray);
-    box-shadow: 0 0 10px currentColor;
+.state-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    color: var(--text-muted);
     transition: all var(--transition);
 }
 
-.status-text {
-    font-size: 13px;
+.state-btn:hover {
     color: var(--text-secondary);
-    font-weight: 300;
+    background: var(--bg-glass-strong);
 }
 
-.stickman-stage {
-    position: relative;
-    width: 100%;
-    max-width: 600px;
-    height: 340px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
+.state-btn.active {
+    background: var(--bg-glass-strong);
+    color: var(--text-primary);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-.ground-line {
-    position: absolute;
-    bottom: 60px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 80%;
-    height: 1px;
-    background: linear-gradient(
-        90deg,
-        transparent 0%,
-        rgba(255, 255, 255, 0.1) 20%,
-        rgba(255, 255, 255, 0.2) 50%,
-        rgba(255, 255, 255, 0.1) 80%,
-        transparent 100%
-    );
+.state-btn-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    transition: all var(--transition);
 }
 
-.stickman-wrapper {
-    position: relative;
-    width: 120px;
-    height: 200px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-}
+.dot-black { background: #2a2a2a; border: 1px solid rgba(255, 255, 255, 0.15); }
+.dot-gray { background: #8a8a8a; }
+.dot-white { background: #ffffff; box-shadow: 0 0 6px rgba(255, 255, 255, 0.4); }
 
-.stickman {
-    width: 100%;
-    height: 100%;
-    overflow: visible;
-}
+.state-btn.active .dot-black { box-shadow: 0 0 8px rgba(60, 60, 60, 0.6); }
+.state-btn.active .dot-gray { box-shadow: 0 0 8px rgba(138, 138, 138, 0.5); }
+.state-btn.active .dot-white { box-shadow: 0 0 10px rgba(255, 255, 255, 0.6); }
 
-.stickman circle,
-.stickman line,
-.stickman path {
-    fill: none;
-    stroke: var(--stickman-color, #8a8a8a);
-    stroke-width: 3;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    transition: stroke 1s ease, opacity 0.6s ease;
-    filter: blur(0.3px);
-}
-
-.stickman .head {
-    fill: var(--stickman-color, #8a8a8a);
-    opacity: 0.08;
-    transition: fill 1s ease, opacity 1s ease;
-}
-
-.stickman .eye {
-    fill: var(--stickman-color, #8a8a8a);
-    stroke: none;
-    opacity: 0.7;
-}
-
-.stickman .tear {
-    fill: rgba(100, 180, 255, 0.6);
-    stroke: none;
-    opacity: 0;
-    transition: opacity 0.6s ease;
-}
-
-/* 状态：黑色（重度） */
-body[data-state="black"] .stickman circle,
-body[data-state="black"] .stickman line,
-body[data-state="black"] .stickman path {
-    stroke: #2a2a2a;
-    opacity: 0.85;
-}
-body[data-state="black"] .stickman .head {
-    fill: #1a1a1a;
-    opacity: 0.15;
-}
-body[data-state="black"] .stickman .eye {
-    fill: #1a1a1a;
-}
-body[data-state="black"] .stickman .tear {
-    opacity: 0.85;
-    animation: tear-drop 2.5s ease-in-out infinite;
-}
-body[data-state="black"] .status-dot {
-    background: #3a3a3a;
-    color: #3a3a3a;
-}
-
-/* 状态：灰色（疗愈中） */
-body[data-state="gray"] .stickman circle,
-body[data-state="gray"] .stickman line,
-body[data-state="gray"] .stickman path {
-    stroke: #8a8a8a;
-}
-body[data-state="gray"] .stickman .head {
-    fill: #8a8a8a;
-    opacity: 0.1;
-}
-body[data-state="gray"] .stickman .eye {
-    fill: #8a8a8a;
-}
-body[data-state="gray"] .status-dot {
-    background: #aaa;
-    color: #aaa;
-    animation: pulse-soft 2.5s ease-in-out infinite;
-}
-
-/* 状态：白色（掌控良好） */
-body[data-state="white"] .stickman circle,
-body[data-state="white"] .stickman line,
-body[data-state="white"] .stickman path {
-    stroke: #ffffff;
-    opacity: 0.9;
-}
-body[data-state="white"] .stickman .head {
-    fill: #ffffff;
-    opacity: 0.12;
-}
-body[data-state="white"] .stickman .eye {
-    fill: #ffffff;
-}
-body[data-state="white"] .status-dot {
-    background: #ffffff;
-    color: #ffffff;
-    animation: pulse-bright 2s ease-in-out infinite;
-}
-
-/* ---- 动画：走路（黑色 - 沉重） ---- */
-body[data-state="black"] .stickman-wrapper {
-    animation: walk-heavy 2s ease-in-out infinite;
-}
-body[data-state="black"] .leg-left {
-    animation: leg-slow-left 2s ease-in-out infinite;
-    transform-origin: 50px 90px;
-}
-body[data-state="black"] .leg-right {
-    animation: leg-slow-right 2s ease-in-out infinite;
-    transform-origin: 50px 90px;
-}
-body[data-state="black"] .arm-left {
-    animation: arm-slow-left 2s ease-in-out infinite;
-    transform-origin: 50px 55px;
-}
-body[data-state="black"] .arm-right {
-    animation: arm-slow-right 2s ease-in-out infinite;
-    transform-origin: 50px 55px;
-}
-body[data-state="black"] .stickman {
-    animation: body-sink 2s ease-in-out infinite;
-}
-
-/* ---- 动画：走路（灰色 - 正常） ---- */
-body[data-state="gray"] .stickman-wrapper {
-    animation: walk-normal 1.2s ease-in-out infinite;
-}
-body[data-state="gray"] .leg-left {
-    animation: leg-normal-left 1.2s ease-in-out infinite;
-    transform-origin: 50px 90px;
-}
-body[data-state="gray"] .leg-right {
-    animation: leg-normal-right 1.2s ease-in-out infinite;
-    transform-origin: 50px 90px;
-}
-body[data-state="gray"] .arm-left {
-    animation: arm-normal-left 1.2s ease-in-out infinite;
-    transform-origin: 50px 55px;
-}
-body[data-state="gray"] .arm-right {
-    animation: arm-normal-right 1.2s ease-in-out infinite;
-    transform-origin: 50px 55px;
-}
-
-/* ---- 动画：跳跃（白色 - 欢呼） ---- */
-body[data-state="white"] .stickman-wrapper {
-    animation: walk-jump 0.8s ease-in-out infinite;
-}
-body[data-state="white"] .leg-left {
-    animation: leg-jump-left 0.8s ease-in-out infinite;
-    transform-origin: 50px 90px;
-}
-body[data-state="white"] .leg-right {
-    animation: leg-jump-right 0.8s ease-in-out infinite;
-    transform-origin: 50px 90px;
-}
-body[data-state="white"] .arm-left {
-    animation: arm-jump-left 0.8s ease-in-out infinite;
-    transform-origin: 50px 55px;
-}
-body[data-state="white"] .arm-right {
-    animation: arm-jump-right 0.8s ease-in-out infinite;
-    transform-origin: 50px 55px;
-}
-body[data-state="white"] .stickman {
-    animation: body-bounce 0.8s ease-in-out infinite;
-}
-
-/* 状态气泡 */
+/* ============================
+   状态气泡
+   ============================ */
 .question-bubble {
     position: absolute;
-    top: 40px;
+    top: 30px;
     left: 50%;
     transform: translateX(-50%);
     background: var(--bg-glass);
@@ -780,7 +924,7 @@ body[data-state="white"] .stickman {
     max-width: 320px;
     text-align: center;
     animation: bubble-in 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    z-index: 10;
+    z-index: 20;
 }
 
 .question-bubble::after {
@@ -1161,105 +1305,105 @@ body[data-editing="true"] .app-item.drag-over {
     50% { transform: translateY(12px); opacity: 0.3; }
 }
 
-/* 沉重走路动画 */
+/* 沉重走路动画（黑色 - 灌铅脚步） */
 @keyframes walk-heavy {
-    0%, 100% { transform: translateY(0) translateX(0); }
-    25% { transform: translateY(2px) translateX(-2px); }
-    50% { transform: translateY(4px) translateX(0); }
-    75% { transform: translateY(2px) translateX(2px); }
+    0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+    25% { transform: translate(-50%, -50%) translateY(3px); }
+    50% { transform: translate(-50%, -50%) translateY(5px); }
+    75% { transform: translate(-50%, -50%) translateY(3px); }
 }
 
-@keyframes leg-slow-left {
-    0%, 100% { transform: rotate(-8deg); }
-    50% { transform: rotate(6deg); }
+@keyframes leg-heavy-left {
+    0%, 100% { transform: rotate(-6deg) translateY(0); }
+    50% { transform: rotate(4deg) translateY(2px); }
 }
 
-@keyframes leg-slow-right {
-    0%, 100% { transform: rotate(6deg); }
-    50% { transform: rotate(-8deg); }
+@keyframes leg-heavy-right {
+    0%, 100% { transform: rotate(4deg) translateY(0); }
+    50% { transform: rotate(-6deg) translateY(2px); }
 }
 
-@keyframes arm-slow-left {
-    0%, 100% { transform: rotate(10deg); }
-    50% { transform: rotate(-8deg); }
+@keyframes arm-heavy-left {
+    0%, 100% { transform: rotate(5deg); }
+    50% { transform: rotate(-3deg); }
 }
 
-@keyframes arm-slow-right {
-    0%, 100% { transform: rotate(-8deg); }
-    50% { transform: rotate(10deg); }
+@keyframes arm-heavy-right {
+    0%, 100% { transform: rotate(-3deg); }
+    50% { transform: rotate(5deg); }
 }
 
 @keyframes body-sink {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(3px); }
+    0%, 100% { transform: translateY(0) scaleY(1); }
+    50% { transform: translateY(2px) scaleY(0.98); }
 }
 
-/* 正常走路动画 */
+/* 正常走路动画（灰色） */
 @keyframes walk-normal {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-2px); }
+    0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+    50% { transform: translate(-50%, -50%) translateY(-3px); }
 }
 
 @keyframes leg-normal-left {
-    0%, 100% { transform: rotate(-15deg); }
-    50% { transform: rotate(12deg); }
+    0%, 100% { transform: rotate(-12deg); }
+    50% { transform: rotate(10deg); }
 }
 
 @keyframes leg-normal-right {
-    0%, 100% { transform: rotate(12deg); }
-    50% { transform: rotate(-15deg); }
-}
-
-@keyframes arm-normal-left {
-    0%, 100% { transform: rotate(15deg); }
+    0%, 100% { transform: rotate(10deg); }
     50% { transform: rotate(-12deg); }
 }
 
-@keyframes arm-normal-right {
-    0%, 100% { transform: rotate(-12deg); }
-    50% { transform: rotate(15deg); }
+@keyframes arm-normal-left {
+    0%, 100% { transform: rotate(12deg); }
+    50% { transform: rotate(-10deg); }
 }
 
-/* 欢呼跳跃动画 */
+@keyframes arm-normal-right {
+    0%, 100% { transform: rotate(-10deg); }
+    50% { transform: rotate(12deg); }
+}
+
+/* 欢呼跳跃动画（白色） */
 @keyframes walk-jump {
-    0%, 100% { transform: translateY(0) translateX(0); }
-    25% { transform: translateY(-18px) translateX(-3px); }
-    50% { transform: translateY(-10px) translateX(0); }
-    75% { transform: translateY(-18px) translateX(3px); }
+    0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+    25% { transform: translate(-50%, -50%) translateY(-20px); }
+    50% { transform: translate(-50%, -50%) translateY(-8px); }
+    75% { transform: translate(-50%, -50%) translateY(-20px); }
 }
 
 @keyframes leg-jump-left {
-    0%, 100% { transform: rotate(-20deg); }
-    25% { transform: rotate(-30deg); }
-    50% { transform: rotate(15deg); }
-    75% { transform: rotate(25deg); }
+    0%, 100% { transform: rotate(-15deg); }
+    25% { transform: rotate(-25deg); }
+    50% { transform: rotate(12deg); }
+    75% { transform: rotate(20deg); }
 }
 
 @keyframes leg-jump-right {
-    0%, 100% { transform: rotate(20deg); }
-    25% { transform: rotate(30deg); }
-    50% { transform: rotate(-15deg); }
-    75% { transform: rotate(-25deg); }
+    0%, 100% { transform: rotate(15deg); }
+    25% { transform: rotate(25deg); }
+    50% { transform: rotate(-12deg); }
+    75% { transform: rotate(-20deg); }
 }
 
 @keyframes arm-jump-left {
-    0%, 100% { transform: rotate(30deg); }
-    25% { transform: rotate(45deg); }
-    50% { transform: rotate(-25deg); }
-    75% { transform: rotate(-45deg); }
+    0%, 100% { transform: rotate(25deg); }
+    25% { transform: rotate(40deg); }
+    50% { transform: rotate(-20deg); }
+    75% { transform: rotate(-35deg); }
 }
 
 @keyframes arm-jump-right {
-    0%, 100% { transform: rotate(-30deg); }
-    25% { transform: rotate(-45deg); }
-    50% { transform: rotate(25deg); }
-    75% { transform: rotate(45deg); }
+    0%, 100% { transform: rotate(-25deg); }
+    25% { transform: rotate(-40deg); }
+    50% { transform: rotate(20deg); }
+    75% { transform: rotate(35deg); }
 }
 
 @keyframes body-bounce {
-    0%, 100% { transform: rotate(0); }
-    25% { transform: rotate(-3deg); }
-    75% { transform: rotate(3deg); }
+    0%, 100% { transform: rotate(0) scale(1); }
+    25% { transform: rotate(-3deg) scale(1.02); }
+    75% { transform: rotate(3deg) scale(1.02); }
 }
 
 /* ============================
@@ -1305,8 +1449,13 @@ body[data-editing="true"] .app-item.drag-over {
         font-size: 18px;
     }
 
-    .stickman-stage {
-        height: 280px;
+    .scene-stage {
+        height: 300px;
+    }
+
+    .stickman-wrapper {
+        width: 110px;
+        height: 150px;
     }
 
     .settings-content {
@@ -1316,8 +1465,12 @@ body[data-editing="true"] .app-item.drag-over {
 
 @media (max-width: 480px) {
     .stickman-wrapper {
-        width: 100px;
-        height: 170px;
+        width: 95px;
+        height: 130px;
+    }
+
+    .scene-stage {
+        height: 260px;
     }
 
     .color-options {
@@ -1327,4 +1480,244 @@ body[data-editing="true"] .app-item.drag-over {
     .color-picker {
         grid-template-columns: repeat(3, 1fr);
     }
+}
+
+/* ============================
+   冥想空间页面
+   ============================ */
+.meditation-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000000;
+    z-index: 9999;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: meditation-fade-in 0.8s ease;
+}
+
+.meditation-page.hidden {
+    display: none;
+}
+
+@keyframes meditation-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* 星星层 */
+.meditation-stars {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.meditation-star {
+    position: absolute;
+    background: #ffffff;
+    border-radius: 50%;
+    animation: star-twinkle var(--twinkle-duration, 3s) ease-in-out infinite;
+    animation-delay: var(--twinkle-delay, 0s);
+}
+
+@keyframes star-twinkle {
+    0%, 100% { opacity: 0.2; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.2); }
+}
+
+/* 流星层 */
+.meditation-shooting-stars {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.shooting-star {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: #ffffff;
+    border-radius: 50%;
+    box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+}
+
+.shooting-star::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 80px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.8), transparent);
+    transform-origin: left center;
+}
+
+/* 文字气泡层 */
+.meditation-bubbles {
+    position: absolute;
+    bottom: 120px;
+    left: 0;
+    width: 100%;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.meditation-bubble {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Ma Shan Zheng', 'Caveat', cursive;
+    font-size: 24px;
+    color: rgba(255, 255, 255, 0.9);
+    text-align: center;
+    white-space: nowrap;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+    animation: bubble-rise 6s ease-out forwards;
+    opacity: 0;
+}
+
+@keyframes bubble-rise {
+    0% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(0) scale(0.8);
+    }
+    15% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(-30px) scale(1);
+    }
+    85% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(-300px) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-400px) scale(0.9);
+    }
+}
+
+/* 底部圆形按钮（Siri风格） */
+.meditation-trigger-btn {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    cursor: pointer;
+    z-index: 20;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.meditation-trigger-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateX(-50%) scale(1.1);
+}
+
+.meditation-btn-inner {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(200,200,255,0.6));
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+    animation: meditation-pulse 2s ease-in-out infinite;
+}
+
+@keyframes meditation-pulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(255, 255, 255, 0.4); }
+    50% { transform: scale(1.15); box-shadow: 0 0 30px rgba(255, 255, 255, 0.6); }
+}
+
+/* 退出按钮 */
+.meditation-close {
+    position: absolute;
+    top: 30px;
+    right: 30px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.meditation-close:hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Siri 风格唤起按钮（首页底部） */
+.siri-button {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    cursor: pointer;
+    z-index: 100;
+    transition: all 0.4s ease;
+    animation: siri-appear 0.6s ease;
+}
+
+.siri-button.hidden {
+    display: none;
+}
+
+@keyframes siri-appear {
+    from { opacity: 0; transform: translateX(-50%) scale(0.5); }
+    to { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+
+.siri-button:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: translateX(-50%) scale(1.1);
+}
+
+.siri-button-glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(255,255,255,0.8), rgba(180,180,255,0.5));
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+    animation: siri-glow 2.5s ease-in-out infinite;
+}
+
+@keyframes siri-glow {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
 }

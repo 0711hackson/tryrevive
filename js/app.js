@@ -7,6 +7,42 @@ const App = (function() {
     let userApps = [];
     let editingMode = false;
 
+    // ========== 娱乐时间计时器（冥想空间触发） ==========
+
+    let entertainmentTimer = null;
+    let entertainmentStartTime = null;
+    const MEDITATION_THRESHOLD = 15 * 60 * 1000; // 15分钟
+
+    function startEntertainmentTimer() {
+        if (entertainmentTimer) return;
+        entertainmentStartTime = Date.now();
+        entertainmentTimer = setInterval(() => {
+            const elapsed = Date.now() - entertainmentStartTime;
+            if (elapsed >= MEDITATION_THRESHOLD) {
+                showSiriButton();
+                // 显示一次后停止计时，避免反复弹出
+                stopEntertainmentTimer();
+            }
+        }, 1000);
+    }
+
+    function stopEntertainmentTimer() {
+        if (entertainmentTimer) {
+            clearInterval(entertainmentTimer);
+            entertainmentTimer = null;
+        }
+    }
+
+    function showSiriButton() {
+        const btn = document.getElementById('siri-button');
+        if (btn) btn.classList.remove('hidden');
+    }
+
+    function hideSiriButton() {
+        const btn = document.getElementById('siri-button');
+        if (btn) btn.classList.add('hidden');
+    }
+
     // ========== 页面切换 ==========
 
     function showAuthPage() {
@@ -267,6 +303,9 @@ const App = (function() {
         const baseUrl = SEARCH_URLS[platform] || SEARCH_URLS.web;
         const searchUrl = baseUrl + encodeURIComponent(keyword);
 
+        // 启动娱乐时间计时器（达到阈值后唤起冥想空间入口）
+        startEntertainmentTimer();
+
         window.open(searchUrl, '_blank');
     }
 
@@ -304,6 +343,7 @@ const App = (function() {
             });
 
             applyThemeColor();
+            Animation.applySceneBackground();
         } catch (e) {}
     }
 
@@ -395,6 +435,18 @@ const App = (function() {
                 }
             }
         });
+
+        // Siri 按钮点击 → 进入冥想空间
+        const siriBtn = document.getElementById('siri-button');
+        if (siriBtn) {
+            siriBtn.addEventListener('click', () => {
+                hideSiriButton();
+                Meditation.enter();
+            });
+        }
+
+        // 初始化冥想空间
+        Meditation.init();
 
         // 检查登录状态
         const user = localStorage.getItem(STORAGE_KEYS.user);

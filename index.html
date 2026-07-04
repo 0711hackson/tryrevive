@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>tryrevive — revive from now</title>
     <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Caveat:wght@400;700&display=swap" rel="stylesheet">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23fff'/></svg>">
 </head>
 <body data-page="home">
@@ -102,54 +103,80 @@
         </header>
 
         <!-- 火柴人动画区 -->
-        <main class="stickman-section">
-            <div class="status-indicator">
-                <span class="status-dot" id="status-dot"></span>
-                <span class="status-text" id="status-text">加载中...</span>
-            </div>
+        <main class="stickman-section" id="stickman-section">
+            <!-- 俯视路径场景（无边框） -->
+            <div class="scene-stage" id="scene-stage">
+                <!-- 水滩层（眼泪汇聚） -->
+                <div class="puddle-layer" id="puddle-layer"></div>
 
-            <div class="stickman-stage" id="stickman-stage">
-                <!-- 地面线 -->
-                <div class="ground-line"></div>
-
-                <!-- 火柴人容器 -->
+                <!-- 火柴人容器（左下角） -->
                 <div class="stickman-wrapper" id="stickman-wrapper">
-                    <svg id="stickman-svg" class="stickman" viewBox="0 0 100 150" xmlns="http://www.w3.org/2000/svg">
-                        <!-- 头部 -->
-                        <circle class="head" cx="50" cy="25" r="14"/>
-                        <!-- 左眼 -->
-                        <circle class="eye eye-left" cx="44" cy="23" r="1.8"/>
-                        <!-- 右眼 -->
-                        <circle class="eye eye-right" cx="56" cy="23" r="1.8"/>
-                        <!-- 眼泪（黑色状态显示） -->
-                        <ellipse class="tear tear-left" cx="44" cy="30" rx="1.5" ry="3"/>
-                        <ellipse class="tear tear-right" cx="56" cy="30" rx="1.5" ry="3"/>
-                        <!-- 嘴巴 -->
-                        <path class="mouth" d="" />
-                        <!-- 身体 -->
-                        <line class="body" x1="50" y1="39" x2="50" y2="90"/>
-                        <!-- 左臂 -->
-                        <line class="arm arm-left" x1="50" y1="55" x2="30" y2="75"/>
-                        <!-- 右臂 -->
-                        <line class="arm arm-right" x1="50" y1="55" x2="70" y2="75"/>
+                    <svg id="stickman-svg" class="stickman" viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg">
+                        <!-- 阴影 -->
+                        <ellipse class="shadow" cx="50" cy="122" rx="20" ry="5"/>
+
                         <!-- 左腿 -->
-                        <line class="leg leg-left" x1="50" y1="90" x2="35" y2="125"/>
+                        <ellipse class="leg leg-left" cx="42" cy="108" rx="7" ry="10"/>
                         <!-- 右腿 -->
-                        <line class="leg leg-right" x1="50" y1="90" x2="65" y2="125"/>
+                        <ellipse class="leg leg-right" cx="58" cy="108" rx="7" ry="10"/>
+
+                        <!-- 身体（圆嘟嘟水滴形） -->
+                        <ellipse class="body" cx="50" cy="78" rx="22" ry="26"/>
+
+                        <!-- 左臂 -->
+                        <ellipse class="arm arm-left" cx="27" cy="76" rx="6" ry="12"/>
+                        <!-- 右臂 -->
+                        <ellipse class="arm arm-right" cx="73" cy="76" rx="6" ry="12"/>
+
+                        <!-- 头部（大圆头） -->
+                        <circle class="head" cx="50" cy="32" r="22"/>
+
+                        <!-- 眼泪（黑色状态显示） -->
+                        <g class="tears-group" id="tears-group">
+                            <ellipse class="tear tear-1" cx="43" cy="52" rx="2" ry="3.5"/>
+                            <ellipse class="tear tear-2" cx="57" cy="52" rx="2" ry="3.5"/>
+                        </g>
                     </svg>
+
+                    <!-- 眼泪滴落动画层 -->
+                    <div class="tear-drop-layer" id="tear-drop-layer"></div>
                 </div>
 
-                <!-- 状态提问气泡 -->
-                <div class="question-bubble hidden" id="question-bubble">
-                    <p id="bubble-text">最近感觉怎么样？</p>
-                    <div class="bubble-options">
-                        <button class="bubble-option" data-feeling="good">还不错 ☀️</button>
-                        <button class="bubble-option" data-feeling="okay">一般吧 🌿</button>
-                        <button class="bubble-option" data-feeling="low">有点累 🌙</button>
-                    </div>
+                <!-- 状态文字 -->
+                <div class="status-message" id="status-message">
+                    <p class="message-text" id="message-text">正在慢慢找回自己的节奏</p>
+                </div>
+            </div>
+
+            <!-- 状态切换按钮 -->
+            <div class="state-switcher">
+                <button class="state-btn" data-state="black" title="娱乐过度">
+                    <span class="state-btn-dot dot-black"></span>
+                    <span class="state-btn-label">沉重</span>
+                </button>
+                <button class="state-btn" data-state="gray" title="疗愈中">
+                    <span class="state-btn-dot dot-gray"></span>
+                    <span class="state-btn-label">疗愈</span>
+                </button>
+                <button class="state-btn" data-state="white" title="健康状态">
+                    <span class="state-btn-dot dot-white"></span>
+                    <span class="state-btn-label">轻盈</span>
+                </button>
+            </div>
+
+            <!-- 状态提问气泡 -->
+            <div class="question-bubble hidden" id="question-bubble">
+                <p id="bubble-text">最近感觉怎么样？</p>
+                <div class="bubble-options">
+                    <button class="bubble-option" data-feeling="good">还不错 ☀️</button>
+                    <button class="bubble-option" data-feeling="okay">一般吧 🌿</button>
+                    <button class="bubble-option" data-feeling="low">有点累 🌙</button>
                 </div>
             </div>
         </main>
+
+        <!-- 水波纹层（覆盖整个首页，鼠标移动触发） -->
+        <div class="ripple-layer" id="ripple-layer"></div>
 
         <!-- 常用 APP 区域 -->
         <section class="apps-section">
@@ -224,11 +251,33 @@
         <footer class="footer">
             <p class="slogan">revive from now</p>
         </footer>
+
+        <!-- 冥想唤起按钮（Siri风格，平时隐藏） -->
+        <button class="siri-button hidden" id="siri-button" title="给自己一个暂停">
+            <span class="siri-button-glow"></span>
+        </button>
+    </div>
+
+    <!-- 冥想空间页面 -->
+    <div class="meditation-page hidden" id="meditation-page">
+        <div class="meditation-stars" id="meditation-stars"></div>
+        <div class="meditation-shooting-stars" id="meditation-shooting-stars"></div>
+        <div class="meditation-bubbles" id="meditation-bubbles"></div>
+        <button class="meditation-close" id="meditation-close" title="退出">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+        </button>
+        <button class="meditation-trigger-btn" id="meditation-trigger-btn" title="与自己对话">
+            <span class="meditation-btn-inner"></span>
+        </button>
     </div>
 
     <script src="js/data.js"></script>
     <script src="js/questionnaire.js"></script>
     <script src="js/animation.js"></script>
+    <script src="js/meditation.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
