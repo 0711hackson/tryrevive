@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>烂开始 — 让你的行动更容易发生</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600&family=Inter:wght@300;400;500&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+
+    <!-- 1. 首页：写下要做的事 -->
+    <section id="view-home" class="view active">
+      <header class="home-head">
+        <a href="../index.html" class="back-home" title="返回 tryrevive">← tryrevive</a>
+        <h1 class="brand">烂开始</h1>
+        <p class="brand-sub">先做起来再说吧 · 烂开始好过没开始</p>
+      </header>
+
+      <div class="input-card">
+        <label class="field-label" for="task-input">有件什么事，一直拖着没开始？</label>
+        <textarea id="task-input" class="task-input" rows="2"
+          placeholder="例如：写季度复盘 / 整理房间 / 学一节课 / 联系一个许久没联系的人" autocomplete="off"></textarea>
+        <button id="generate-btn" class="btn-primary" onclick="generateStart()">生成一个「烂开始」</button>
+        <p class="hint">它不会给你列计划，只把这件事变成当下就能做的一个小动作。</p>
+      </div>
+
+      <div class="home-footer">
+        <button class="link-btn" onclick="switchView('timeline')">看看我动过的痕迹 →</button>
+        <button class="link-btn subtle" onclick="openSettings()">⚙︎ AI 设置</button>
+      </div>
+    </section>
+
+    <!-- 2. 启动动作卡片 -->
+    <section id="view-action" class="view">
+      <div class="action-wrap">
+        <p class="action-context" id="action-context"></p>
+        <p class="action-kicker">现在，只需要做这一个动作：</p>
+        <h2 class="action-text" id="action-text">…</h2>
+
+        <div class="action-buttons">
+          <button class="btn-primary" onclick="enterFocus()">就这样，开始</button>
+          <button class="btn-ghost" onclick="regenerate()">换一个更小的</button>
+        </div>
+        <button class="link-btn back" onclick="switchView('home')">← 返回</button>
+      </div>
+    </section>
+
+    <!-- 3. 沉浸执行 -->
+    <section id="view-focus" class="view focus">
+      <div class="focus-inner">
+        <div class="breath-dot" aria-hidden="true"></div>
+        <p class="focus-kicker">正在做</p>
+        <h2 class="focus-text" id="focus-text">…</h2>
+        <p class="focus-tip">不用想做完会怎样——先做完这一步再说。</p>
+        <button class="btn-primary done" onclick="completeAction()">我做完了</button>
+        <button class="link-btn back" onclick="abandonFocus()">先停一下</button>
+      </div>
+    </section>
+
+    <!-- 4. 完成后：是否继续 -->
+    <section id="view-done" class="view">
+      <div class="done-wrap">
+        <div class="done-check" aria-hidden="true">✓</div>
+        <h2 class="done-title">做完了。</h2>
+        <p class="done-sub" id="done-sub">一个小小的胜利，已经记下了。</p>
+        <p class="done-q">要不要，再往前一点点？</p>
+        <div class="action-buttons">
+          <button class="btn-primary" onclick="continueStep()">再来一步</button>
+          <button class="btn-ghost" onclick="stopHere()">到此为止</button>
+        </div>
+        <p class="hint">是否继续，完全由你决定。没有自动弹出的新待办。</p>
+      </div>
+    </section>
+
+    <!-- 5. 时间线 -->
+    <section id="view-timeline" class="view">
+      <header class="tl-head">
+        <h1 class="tl-title">行动痕迹</h1>
+        <button class="link-btn" onclick="switchView('home')">+ 新的一件事</button>
+      </header>
+      <div id="timeline-list" class="timeline-list"></div>
+    </section>
+
+  </main>
+
+  <!-- AI 设置弹层 -->
+  <div id="settings-overlay" class="overlay">
+    <div class="overlay-card">
+      <h3 class="overlay-title">AI 增强（选填）</h3>
+      <p class="overlay-text">
+        默认用本地规则生成启动动作，完全免费、离线可用。
+        如果填入 Anthropic API Key，会用 AI 生成更贴切的小动作（Key 仅保存在本机浏览器）。
+      </p>
+      <label class="field-label" for="api-key-input">Anthropic API Key</label>
+      <input type="password" id="api-key-input" class="text-input" placeholder="sk-ant-...（留空则用本地规则）" autocomplete="off">
+      <label class="checkbox-row">
+        <input type="checkbox" id="use-ai-toggle"> 优先使用 AI 生成
+      </label>
+      <div class="overlay-buttons">
+        <button class="btn-ghost" onclick="closeSettings()">取消</button>
+        <button class="btn-primary" onclick="saveSettings()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

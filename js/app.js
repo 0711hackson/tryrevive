@@ -160,7 +160,19 @@ const App = (function() {
         try {
             const saved = localStorage.getItem(STORAGE_KEYS.apps);
             if (saved) {
-                userApps = JSON.parse(saved);
+                // 用预设字段补全旧存档（如新增的 logo / local 字段）
+                userApps = JSON.parse(saved).map(a => {
+                    const preset = PRESET_APPS.find(p => p.id === a.id);
+                    return preset ? { ...preset, ...a, logo: preset.logo, local: preset.local } : a;
+                });
+                // 一次性把「烂开始」并入旧存档
+                if (!userApps.find(a => a.id === 'lanshi') &&
+                    !localStorage.getItem('tryrevive_lanshi_added')) {
+                    const lanshi = PRESET_APPS.find(p => p.id === 'lanshi');
+                    if (lanshi) userApps.push({ ...lanshi, addedAt: new Date().toISOString() });
+                    localStorage.setItem('tryrevive_lanshi_added', 'true');
+                    saveApps();
+                }
             } else {
                 // 首次加载，使用默认 APP
                 userApps = DEFAULT_APP_IDS.map(id => {
@@ -193,16 +205,44 @@ const App = (function() {
             item.dataset.index = index;
             item.dataset.id = app.id;
             item.innerHTML = `
-                <div class="app-icon" style="background: ${app.bg || '#333'}">${app.icon || app.name.charAt(0)}</div>
+                <div class="app-icon"></div>
                 <div class="app-name">${app.name}</div>
                 <button class="app-remove" data-index="${index}" title="移除">×</button>
             `;
+
+            // 图标：优先官方 logo，加载失败/超时回退 emoji
+            const iconBox = item.querySelector('.app-icon');
+            if (app.logo) {
+                const img = document.createElement('img');
+                img.className = 'app-logo';
+                img.alt = app.name;
+                img.referrerPolicy = 'no-referrer';
+                const useFallback = () => {
+                    if (!iconBox.contains(img)) return; // 已回退过
+                    iconBox.classList.add('fallback');
+                    iconBox.style.setProperty('--fallback-bg', app.bg || '#333');
+                    iconBox.textContent = app.icon || app.name.charAt(0);
+                };
+                img.onerror = useFallback;
+                // 网络被墙/极慢时：4 秒未加载完成则回退
+                setTimeout(() => {
+                    if (!(img.complete && img.naturalWidth > 0)) useFallback();
+                }, 4000);
+                img.src = app.logo;
+                iconBox.appendChild(img);
+            } else {
+                iconBox.classList.add('fallback');
+                iconBox.style.setProperty('--fallback-bg', app.bg || '#333');
+                iconBox.textContent = app.icon || app.name.charAt(0);
+            }
 
             // 点击打开 APP
             item.addEventListener('click', (e) => {
                 if (editingMode) return;
                 if (app.url) {
-                    window.open(app.url, '_blank');
+                    window.open(app.url, '_blank', 'noopener');
+                    // 外部娱乐平台：启动娱乐计时（站内模块除外）
+                    if (!app.local) startEntertainmentTimer();
                 }
             });
 
@@ -250,7 +290,6 @@ const App = (function() {
         const btn = document.getElementById('edit-apps-btn');
         if (btn) {
             btn.classList.toggle('editing', editingMode);
-            btn.querySelector('span:last-child') ? null : null;
         }
         renderApps();
     }
@@ -306,7 +345,7 @@ const App = (function() {
         // 启动娱乐时间计时器（达到阈值后唤起冥想空间入口）
         startEntertainmentTimer();
 
-        window.open(searchUrl, '_blank');
+        window.open(searchUrl, '_blank', 'noopener');
     }
 
     // ========== 设置面板 ==========

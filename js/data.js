@@ -4,11 +4,13 @@
    ============================ */
 
 // ---- 预设 APP 列表 ----
+// logo 使用各平台官方 favicon；加载失败时自动回退 emoji 图标
 const PRESET_APPS = [
     {
         id: 'bilibili',
         name: 'B 站',
         icon: '📺',
+        logo: 'https://www.bilibili.com/favicon.ico',
         color: '#fb7299',
         bg: 'linear-gradient(135deg, #ff9eb5 0%, #fb7299 100%)',
         url: 'https://www.bilibili.com'
@@ -17,6 +19,7 @@ const PRESET_APPS = [
         id: 'xiaohongshu',
         name: '小红书',
         icon: '📕',
+        logo: 'https://www.xiaohongshu.com/favicon.ico',
         color: '#ff2442',
         bg: 'linear-gradient(135deg, #ff6b7e 0%, #ff2442 100%)',
         url: 'https://www.xiaohongshu.com'
@@ -25,6 +28,7 @@ const PRESET_APPS = [
         id: 'douyin',
         name: '抖音',
         icon: '🎵',
+        logo: 'https://www.douyin.com/favicon.ico',
         color: '#000000',
         bg: 'linear-gradient(135deg, #444 0%, #000 100%)',
         url: 'https://www.douyin.com'
@@ -33,6 +37,7 @@ const PRESET_APPS = [
         id: 'netease',
         name: '网易云',
         icon: '🎶',
+        logo: 'https://s1.music.126.net/style/favicon.ico',
         color: '#e60026',
         bg: 'linear-gradient(135deg, #ff4d6d 0%, #e60026 100%)',
         url: 'https://music.163.com'
@@ -41,6 +46,7 @@ const PRESET_APPS = [
         id: 'weibo',
         name: '微博',
         icon: '🌟',
+        logo: 'https://weibo.com/favicon.ico',
         color: '#e6162d',
         bg: 'linear-gradient(135deg, #ff4d5e 0%, #e6162d 100%)',
         url: 'https://weibo.com'
@@ -49,6 +55,7 @@ const PRESET_APPS = [
         id: 'zhihu',
         name: '知乎',
         icon: '❓',
+        logo: 'https://static.zhihu.com/heifetz/favicon.ico',
         color: '#0084ff',
         bg: 'linear-gradient(135deg, #6bb5ff 0%, #0084ff 100%)',
         url: 'https://www.zhihu.com'
@@ -57,6 +64,7 @@ const PRESET_APPS = [
         id: 'youtube',
         name: 'YouTube',
         icon: '▶️',
+        logo: 'https://www.youtube.com/favicon.ico',
         color: '#ff0000',
         bg: 'linear-gradient(135deg, #ff6666 0%, #ff0000 100%)',
         url: 'https://www.youtube.com'
@@ -65,14 +73,24 @@ const PRESET_APPS = [
         id: 'github',
         name: 'GitHub',
         icon: '🐙',
+        logo: 'https://github.com/favicon.ico',
         color: '#24292e',
         bg: 'linear-gradient(135deg, #586069 0%, #24292e 100%)',
         url: 'https://github.com'
+    },
+    {
+        id: 'lanshi',
+        name: '烂开始',
+        icon: '🌱',
+        color: '#7c9a6d',
+        bg: 'linear-gradient(135deg, #9db98d 0%, #5d7a4e 100%)',
+        url: 'lanshi/index.html',
+        local: true   // 站内模块：不启动娱乐计时
     }
 ];
 
 // ---- 默认 APP（首次加载时显示） ----
-const DEFAULT_APP_IDS = ['bilibili', 'xiaohongshu', 'douyin', 'netease'];
+const DEFAULT_APP_IDS = ['bilibili', 'xiaohongshu', 'douyin', 'netease', 'lanshi'];
 
 // ---- 平台搜索 URL 映射 ----
 const SEARCH_URLS = {

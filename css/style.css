@@ -1721,3 +1721,291 @@ body[data-editing="true"] .app-item.drag-over {
     0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
     50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
 }
+
+/* ═══════════════════════════════════════════
+   V2 重构 · Google 式极简首页
+   字标 + 单一搜索栏 + 真实 Logo Dock + 左下角桌宠
+   ═══════════════════════════════════════════ */
+
+/* ---- 顶栏：仅右上角设置 ---- */
+.top-bar.minimal {
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 20px 24px;
+    max-width: none;
+    width: auto;
+    margin: 0;
+    z-index: 20;
+}
+
+/* ---- 中央 Hero ---- */
+.hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 26px;
+    padding: 0 24px 60px;
+    position: relative;
+    z-index: 5;
+}
+
+.hero-wordmark {
+    font-size: clamp(42px, 6vw, 64px);
+    font-weight: 200;
+    letter-spacing: 0.14em;
+    color: var(--text-primary);
+    text-shadow: 0 0 60px rgba(255, 255, 255, 0.15);
+    user-select: none;
+}
+
+.hero-slogan {
+    font-size: 13px;
+    font-weight: 300;
+    letter-spacing: 0.18em;
+    color: var(--text-muted);
+    margin-top: -14px;
+    user-select: none;
+}
+
+.hero-search {
+    width: 100%;
+    max-width: 580px;
+}
+
+/* ---- Dock：真实 Logo 图标 ---- */
+.hero-dock {
+    padding: 6px 0 0;
+    max-width: 660px;
+    width: 100%;
+    margin: 0;
+}
+
+.hero-dock .apps-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 18px;
+    grid-template-columns: none;
+}
+
+.hero-dock .app-item {
+    width: 82px;
+    padding: 10px 4px;
+    background: none;
+    border: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+}
+
+.hero-dock .app-item:hover {
+    transform: translateY(-4px);
+    background: var(--bg-glass);
+    border: none;
+    box-shadow: none;
+}
+
+.hero-dock .app-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.92) !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    overflow: hidden;
+}
+
+.hero-dock .app-icon .app-logo {
+    width: 62%;
+    height: 62%;
+    object-fit: contain;
+    display: block;
+}
+
+.hero-dock .app-icon.fallback {
+    background: var(--fallback-bg, rgba(255, 255, 255, 0.08)) !important;
+}
+
+/* 添加/编辑：弱化为 Dock 下方的小操作 */
+.dock-actions {
+    justify-content: center;
+    margin: 14px 0 0;
+    gap: 10px;
+}
+.dock-actions .apps-title { display: none; }
+
+/* ---- 桌宠：左下角 ---- */
+.pet-corner {
+    position: fixed;
+    left: 26px;
+    bottom: 20px;
+    width: 150px;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none; /* 仅子元素可交互 */
+}
+
+.pet-corner .stickman-wrapper {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    width: 88px;
+    height: 118px;
+    z-index: 5;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+/* 水滩置于脚下 */
+.pet-corner .puddle-layer {
+    position: absolute;
+    bottom: 66px;
+    top: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+}
+
+/* 状态文字：小字居中 */
+.pet-corner .status-message {
+    position: relative;
+    margin-top: 2px;
+    text-align: center;
+    max-width: 150px;
+}
+
+.pet-corner .message-text {
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-muted);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+/* 迷你状态切换：仅圆点，悬停显示文字 */
+.pet-corner .state-switcher {
+    position: relative;
+    margin-top: 8px;
+    display: flex;
+    gap: 6px;
+    pointer-events: auto;
+    opacity: 0.45;
+    transition: opacity 0.3s ease;
+}
+.pet-corner:hover .state-switcher { opacity: 1; }
+
+.pet-corner .state-btn {
+    padding: 4px 7px;
+    gap: 4px;
+}
+.pet-corner .state-btn-label {
+    display: none;
+    font-size: 10px;
+}
+.pet-corner .state-btn:hover .state-btn-label { display: inline; }
+
+/* 气泡：出现在桌宠上方 */
+.pet-corner .question-bubble {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    top: auto;
+    left: 0;
+    transform: none;
+    width: 230px;
+    pointer-events: auto;
+    z-index: 50;
+}
+
+/* ---- 冥想空间 · 灵魂之火 ---- */
+.meditation-trigger-btn {
+    width: 84px;
+    height: 84px;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+.meditation-trigger-btn:hover {
+    background: transparent;
+    transform: translateX(-50%) scale(1.08);
+}
+
+.meditation-btn-inner {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    /* 灵魂之火：暖橙核心 + 冷蓝光晕 */
+    background: radial-gradient(circle at 50% 64%,
+        #ffe3b8 0%,
+        #ffb469 22%,
+        #f57a3d 42%,
+        rgba(196, 92, 60, 0.75) 56%,
+        rgba(108, 76, 180, 0.45) 72%,
+        rgba(59, 108, 235, 0.25) 84%,
+        transparent 95%);
+    box-shadow:
+        0 0 22px 6px rgba(255, 150, 80, 0.5),
+        0 0 55px 22px rgba(90, 120, 240, 0.32),
+        0 0 110px 48px rgba(60, 90, 220, 0.16);
+    animation: soulfire-breathe 4.5s ease-in-out infinite;
+    position: relative;
+}
+
+/* 颗粒噪点（静态叠加，不耗性能） */
+.meditation-btn-inner::after {
+    content: '';
+    position: absolute;
+    inset: -30%;
+    border-radius: 50%;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+@keyframes soulfire-breathe {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow:
+            0 0 22px 6px rgba(255, 150, 80, 0.5),
+            0 0 55px 22px rgba(90, 120, 240, 0.32),
+            0 0 110px 48px rgba(60, 90, 220, 0.16);
+    }
+    50% {
+        transform: scale(1.12);
+        box-shadow:
+            0 0 30px 10px rgba(255, 160, 90, 0.62),
+            0 0 75px 30px rgba(90, 120, 240, 0.42),
+            0 0 140px 60px rgba(60, 90, 220, 0.22);
+    }
+}
+
+/* 首页 Siri 按钮也用灵魂之火迷你版 */
+.siri-button-glow {
+    background: radial-gradient(circle at 50% 64%,
+        #ffe3b8 0%, #ffb469 30%, #f57a3d 52%,
+        rgba(108, 76, 180, 0.5) 74%, transparent 92%);
+    box-shadow:
+        0 0 14px 3px rgba(255, 150, 80, 0.45),
+        0 0 34px 12px rgba(90, 120, 240, 0.28);
+}
+
+/* ---- 移动端适配 ---- */
+@media (max-width: 600px) {
+    .hero { gap: 20px; padding-bottom: 100px; }
+    .hero-wordmark { font-size: 38px; }
+    .hero-slogan { font-size: 11px; letter-spacing: 0.12em; }
+    .hero-dock .app-item { width: 68px; }
+    .hero-dock .app-icon { width: 46px; height: 46px; }
+    .pet-corner {
+        left: 12px;
+        bottom: 12px;
+        width: 110px;
+        transform: scale(0.85);
+        transform-origin: bottom left;
+    }
+}

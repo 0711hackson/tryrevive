@@ -325,28 +325,20 @@ const Animation = (function() {
         try {
             const pref = JSON.parse(localStorage.getItem(STORAGE_KEYS.preferences) || '{}');
             const color = pref.color || '#4a90e2';
-            const sceneStage = document.getElementById('scene-stage');
-            if (!sceneStage) return;
 
-            // 根据偏好色生成渐变背景
             const r = parseInt(color.slice(1, 3), 16);
             const g = parseInt(color.slice(3, 5), 16);
             const b = parseInt(color.slice(5, 7), 16);
 
-            const bg = `
-                radial-gradient(ellipse at 50% 20%, rgba(${r}, ${g}, ${b}, 0.15) 0%, transparent 60%),
-                radial-gradient(ellipse at 80% 80%, rgba(${r}, ${g}, ${b}, 0.06) 0%, transparent 50%),
-                linear-gradient(180deg,
-                    #050510 0%,
-                    rgba(${Math.floor(r*0.1)}, ${Math.floor(g*0.1)}, ${Math.floor(b*0.15)}, 1) 30%,
-                    rgba(${Math.floor(r*0.08)}, ${Math.floor(g*0.08)}, ${Math.floor(b*0.12)}, 1) 60%,
-                    #050510 100%
-                )
-            `;
-            sceneStage.style.background = bg;
-
-            // 水波纹颜色也跟随偏好色
+            // 水波纹颜色跟随偏好色
             document.documentElement.style.setProperty('--ripple-color', `rgba(${r}, ${g}, ${b}, 0.35)`);
+
+            // 桌宠脚下柔光跟随偏好色
+            const petCorner = document.getElementById('pet-corner');
+            if (petCorner) {
+                petCorner.style.background =
+                    `radial-gradient(ellipse at 50% 78%, rgba(${r}, ${g}, ${b}, 0.10) 0%, transparent 70%)`;
+            }
         } catch (e) {
             console.warn('应用场景背景失败:', e);
         }
