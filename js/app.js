@@ -425,6 +425,22 @@ const App = (function() {
         document.getElementById('login-form').addEventListener('submit', handleLogin);
         document.getElementById('register-form').addEventListener('submit', handleRegister);
 
+        // 游客直接体验（demo 快速入口）
+        const guestBtn = document.getElementById('guest-btn');
+        if (guestBtn) {
+            guestBtn.addEventListener('click', () => {
+                try {
+                    localStorage.setItem(STORAGE_KEYS.user, JSON.stringify({
+                        username: 'guest',
+                        guest: true,
+                        loggedInAt: new Date().toISOString()
+                    }));
+                    localStorage.setItem(STORAGE_KEYS.questionnaireDone, 'true');
+                } catch (e) {}
+                showHomePage();
+            });
+        }
+
         // 问卷导航
         document.getElementById('prev-btn').addEventListener('click', () => Questionnaire.prev());
         document.getElementById('next-btn').addEventListener('click', () => Questionnaire.next());

@@ -2009,3 +2009,13 @@ body[data-editing="true"] .app-item.drag-over {
         transform-origin: bottom left;
     }
 }
+
+/* 游客体验入口 */
+.guest-skip {
+    margin-top: 18px;
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+    transition: color 0.25s ease;
+}
+.guest-skip:hover { color: var(--text-primary); }
