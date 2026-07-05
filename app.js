@@ -2373,15 +2373,55 @@ function syncWarningMotivationalDOM() {
   }
 }
 
-// --- 17a. Anthropic API AI Coach Client logic ---
-async function fetchAICoachFeedback(promptType, callback) {
-  const apiKey = state.userProfile.apiKey;
-  if (!apiKey) {
-    console.log("No Anthropic API Key configured. Falling back to local MBTI coach templates.");
-    callback(getLocalFallbackQuote(promptType));
-    return;
+// --- 17a. Claude AI 客户端（统一入口） ---
+// 优先走 Cloudflare Worker 代理（Key 藏在服务端，安全）；
+// 未配置代理时，回退到用户本地填写的 API Key 直连。
+const AI_PROXY_URL = ""; // Worker 部署后填入，如 "https://tryrevive-ai.xxx.workers.dev"
+
+async function callClaude({ system, messages, model, maxTokens }) {
+  const payload = {
+    model: model || "claude-sonnet-5",
+    max_tokens: maxTokens || 512,
+    system: system,
+    messages: messages
+  };
+
+  if (AI_PROXY_URL) {
+    const resp = await fetch(AI_PROXY_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) throw new Error(`proxy HTTP ${resp.status}`);
+    const data = await resp.json();
+    if (data && data.content && data.content[0] && data.content[0].text) {
+      return data.content[0].text.trim();
+    }
+    throw new Error(data.error || "invalid proxy response");
   }
 
+  const apiKey = state.userProfile.apiKey;
+  if (!apiKey) throw new Error("no proxy & no api key");
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify(payload)
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (data && data.content && data.content[0] && data.content[0].text) {
+    return data.content[0].text.trim();
+  }
+  throw new Error("invalid API response");
+}
+
+async function fetchAICoachFeedback(promptType, callback) {
   const systemPrompt = "你是一位温和而清醒的陪伴者，帮助容易被推荐流卷走注意力的人，轻轻回到自己真正想做的事情上。请结合用户的人格倾向、想去的地方或想完成的目标，以及此刻的状态，写一句不超过 40 字的话。语气平静、具体、像理解他的朋友在身边轻声提醒——不说教、不制造羞耻感、不喊口号、不用伪科学术语。避免一切 AI 套话，直接输出这一句话。";
   const userMessage = `
   用户 MBTI: ${state.userProfile.mbti}
@@ -2390,54 +2430,81 @@ async function fetchAICoachFeedback(promptType, callback) {
   触发情境: ${promptType === "blocker" ? "用户在使用被设防的应用超时，需要警醒防线" : "用户刚完成一轮禅想冷静，准备重新上路自律"}
   `;
 
-  // Check if inside Chrome Extension worker proxy context
-  if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
-    chrome.runtime.sendMessage(
-      {
-        action: "fetchAnthropic",
-        apiKey: apiKey,
-        system: systemPrompt,
-        message: userMessage
-      },
-      (response) => {
-        if (response && response.success) {
-          callback(response.content.trim());
-        } else {
-          console.error("Chrome Extension proxy error:", response ? response.error : "Unknown");
-          callback(getLocalFallbackQuote(promptType));
-        }
-      }
-    );
-  } else {
-    // Web direct fetch fallback (will trigger CORS unless dangerous access is allowed or running locally with bypass)
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-          "anthropic-dangerous-direct-access-allowed": "true"
-        },
-        body: JSON.stringify({
-          model: "claude-3-5-sonnet-20241022",
-          max_tokens: 120,
-          system: systemPrompt,
-          messages: [{ role: "user", content: userMessage }]
-        })
-      });
-      
-      if (!response.ok) throw new Error(`HTTP status ${response.status}`);
-      const data = await response.json();
-      if (data && data.content && data.content[0] && data.content[0].text) {
-        callback(data.content[0].text.trim());
-      } else {
-        throw new Error("Invalid Anthropic API response format");
-      }
-    } catch (err) {
-      console.warn("Direct Anthropic API fetch failed (likely CORS). Falling back. Error:", err.message);
-      callback(getLocalFallbackQuote(promptType));
-    }
+  try {
+    const text = await callClaude({
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessage }],
+      model: "claude-haiku-4-5-20251001",
+      maxTokens: 120
+    });
+    callback(text);
+  } catch (err) {
+    console.warn("AI coach fetch failed, falling back:", err.message);
+    callback(getLocalFallbackQuote(promptType));
+  }
+}
+
+// --- 17b. AI 对话（心语聊天：透明气泡，温和催促） ---
+const chatState = { history: [], busy: false };
+
+function toggleAIChat(forceOpen) {
+  const panel = document.getElementById("ai-chat-panel");
+  if (!panel) return;
+  const open = forceOpen === true || !panel.classList.contains("open");
+  panel.classList.toggle("open", open);
+  const list = document.getElementById("ai-chat-messages");
+  if (open && list && !list.children.length) {
+    appendChatBubble("assistant", "我在。想聊聊你现在正被什么占据，或者今天真正想完成的那件事吗？");
+  }
+  if (open) {
+    const input = document.getElementById("ai-chat-input");
+    if (input) setTimeout(() => input.focus(), 200);
+  }
+}
+
+function appendChatBubble(role, text) {
+  const list = document.getElementById("ai-chat-messages");
+  if (!list) return null;
+  const el = document.createElement("div");
+  el.className = "chat-bubble " + (role === "user" ? "chat-user" : "chat-ai");
+  el.textContent = text;
+  list.appendChild(el);
+  list.scrollTop = list.scrollHeight;
+  return el;
+}
+
+async function sendAIChat() {
+  if (chatState.busy) return;
+  const input = document.getElementById("ai-chat-input");
+  const text = input ? input.value.trim() : "";
+  if (!text) return;
+  input.value = "";
+
+  appendChatBubble("user", text);
+  chatState.history.push({ role: "user", content: text });
+
+  const thinking = appendChatBubble("assistant", "…");
+  chatState.busy = true;
+
+  const systemPrompt = `你是 tryrevive 的陪伴者——温和、清醒、简短。用户正在练习把注意力从推荐流夺回到自己的人生。
+用户画像：MBTI=${state.userProfile.mbti || "未知"}；今日目标=${state.userProfile.motivation || "未设定"}；计划步骤=1.${state.userProfile.firstStep || "未定"} 2.${state.userProfile.step2 || "未定"} 3.${state.userProfile.step3 || "未定"}。
+原则：每次回复不超过 80 字；像朋友轻声对话，不说教、不羞辱、不喊口号；倾听并接住情绪，再轻轻把话题引回"当下能做的最小一步"；适时提出一个具体的小问题帮对方想清楚。`;
+
+  try {
+    const reply = await callClaude({
+      system: systemPrompt,
+      messages: chatState.history.slice(-20),
+      model: "claude-sonnet-5",
+      maxTokens: 300
+    });
+    thinking.textContent = reply;
+    chatState.history.push({ role: "assistant", content: reply });
+  } catch (err) {
+    thinking.textContent = state.userProfile.apiKey || AI_PROXY_URL
+      ? "（连接失败了，稍后再试试）"
+      : "（还没接通 AI：请在「设置偏好」里填入 API Key，或等待代理配置完成）";
+  } finally {
+    chatState.busy = false;
   }
 }
 

@@ -314,6 +314,24 @@
 
       </div>
 
+      <!-- AI 心语对话（浮动按钮 + 透明气泡面板） -->
+      <button id="ai-chat-toggle" class="ai-chat-toggle" onclick="toggleAIChat()" title="和 AI 聊聊">
+        <span class="ai-chat-orb"></span>
+      </button>
+      <div id="ai-chat-panel" class="ai-chat-panel">
+        <div class="ai-chat-head">
+          <span>心语 · 和自己对话</span>
+          <button onclick="toggleAIChat()" class="ai-chat-close">✕</button>
+        </div>
+        <div id="ai-chat-messages" class="ai-chat-messages"></div>
+        <div class="ai-chat-inputrow">
+          <input type="text" id="ai-chat-input" class="ai-chat-input"
+                 placeholder="此刻在想什么…" autocomplete="off"
+                 onkeypress="if(event.key==='Enter'){sendAIChat()}">
+          <button onclick="sendAIChat()" class="ai-chat-send">↑</button>
+        </div>
+      </div>
+
       <!-- Today's Goal Coach Card (Compact design) -->
       <div id="goal-coach-popup" class="goal-popup-card" style="margin-bottom: 1rem; width: 100%; max-width: 500px; align-self: center; background: rgba(15, 17, 26, 0.45); border-color: rgba(255,255,255,0.04);">
         <div style="display: flex; justify-content: space-between; align-items: center;">
