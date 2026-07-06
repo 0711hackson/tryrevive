@@ -179,28 +179,34 @@ function glyphIcon(ch, size) {
 
 const DOUYIN_NOTE_PATH = "M31.5 6c.7 4.3 3.9 7.7 8.5 8.3v6.4c-3.2-.1-6.2-1.1-8.5-2.8v13.3c0 6.9-5.6 12.4-12.4 12.4S6.7 38.1 6.7 31.2 12.3 18.8 19.1 18.8c.7 0 1.4.1 2 .2v6.9c-.6-.2-1.3-.3-2-.3-3.1 0-5.6 2.5-5.6 5.6s2.5 5.6 5.6 5.6 5.6-2.5 5.6-5.6V6h6.8z";
 
+// img = 官方图标文件（已下载入库 icons/ 目录）；svg = 加载失败时的兜底图标
 const BRAND_ICONS = {
   bilibili: {
+    img: "icons/bilibili.ico",
     bg: "#00AEEC",
     svg: `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path d="M15 7l6 6M33 7l-6 6" stroke="#fff" stroke-width="3.4" stroke-linecap="round"/><rect x="7" y="13" width="34" height="26" rx="7" fill="#fff"/><rect x="16" y="21" width="3.6" height="9" rx="1.8" fill="#00AEEC"/><rect x="28.4" y="21" width="3.6" height="9" rx="1.8" fill="#00AEEC"/></svg>`
   },
   douyin: {
+    img: "icons/douyin.ico",
     bg: "#161823",
     svg: `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><g transform="translate(1.5,1.5) scale(0.94)"><path d="${DOUYIN_NOTE_PATH}" fill="#25F4EE" transform="translate(-1.6,-1.6)"/><path d="${DOUYIN_NOTE_PATH}" fill="#FE2C55" transform="translate(1.6,1.6)"/><path d="${DOUYIN_NOTE_PATH}" fill="#fff"/></g></svg>`
   },
   weibo: {
+    img: "icons/weibo.ico",
     bg: "#E6162D",
     svg: `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path d="M32 6.5c6.2-.4 10.6 4.4 9.3 10.4" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M32.5 13c3.2-.2 5.5 2.3 4.8 5.4" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="20.5" cy="30" rx="15" ry="11.5" fill="#fff"/><ellipse cx="20.5" cy="30" rx="7.2" ry="6.8" fill="#E6162D"/><circle cx="18.4" cy="28.2" r="2.3" fill="#fff"/></svg>`
   },
-  xiaohongshu: { bg: "#FF2442", svg: glyphIcon("小红书", 12.5) },
-  taobao: { bg: "#FF5000", svg: glyphIcon("淘", 23) },
+  xiaohongshu: { img: "icons/xiaohongshu.ico", bg: "#FF2442", svg: glyphIcon("小红书", 12.5) },
+  taobao: { img: "icons/taobao.ico", bg: "#FF5000", svg: glyphIcon("淘", 23) },
   pinduoduo: { bg: "#E02E24", svg: glyphIcon("拼", 23) },
-  zhihu: { bg: "#0084FF", svg: glyphIcon("知", 23) },
+  zhihu: { img: "icons/zhihu.ico", bg: "#0084FF", svg: glyphIcon("知", 23) },
   netease: {
+    img: "icons/netease.ico",
     bg: "#DD1D1D",
     svg: `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="26" r="14" fill="none" stroke="#fff" stroke-width="3.2"/><path d="M27.5 8c-3 3.2-3.6 7-2 11" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="24" cy="26" r="4.6" fill="#fff"/></svg>`
   },
   wechat_mp: {
+    img: "icons/wechat_mp.ico",
     bg: "#07C160",
     svg: `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path d="M19 8C11.8 8 6 13 6 19.2c0 3.6 2 6.8 5.1 8.8l-1.3 4.2 4.6-2.4c1.4.4 3 .6 4.6.6h1.3c-.3-1-.5-2-.5-3.1 0-6.4 6.2-11.6 13.8-11.6h.7C33 11.5 26.6 8 19 8z" fill="#fff"/><path d="M33.5 18c-6.4 0-11.5 4.3-11.5 9.7s5.1 9.7 11.5 9.7c1.3 0 2.6-.2 3.8-.5l3.9 2-1.1-3.6c2.9-1.8 4.9-4.5 4.9-7.6 0-5.4-5.1-9.7-11.5-9.7z" fill="#fff" opacity=".95"/><circle cx="14.5" cy="17.5" r="1.8" fill="#07C160"/><circle cx="23.5" cy="17.5" r="1.8" fill="#07C160"/><circle cx="29.8" cy="26.6" r="1.5" fill="#07C160"/><circle cx="37.4" cy="26.6" r="1.5" fill="#07C160"/></svg>`
   },
@@ -2158,7 +2164,9 @@ function renderAppDock() {
     const safeColor = /^(#[0-9a-fA-F]{3,8}|hsl\([^"'<>]*\)|rgb\([^"'<>]*\))$/.test(app.color || "")
       ? app.color : "var(--accent)";
     const iconHtml = brand
-      ? `<div class="dock-app-icon brand-icon" style="background: ${brand.bg};">${brand.svg}</div>`
+      ? (brand.img
+          ? `<div class="dock-app-icon brand-icon has-img" style="background: ${brand.bg};"><img src="${brand.img}" alt="" loading="lazy"></div>`
+          : `<div class="dock-app-icon brand-icon" style="background: ${brand.bg};">${brand.svg}</div>`)
       : `<div class="dock-app-icon" style="background: linear-gradient(135deg, ${safeColor}, rgba(0,0,0,0.6));">${escapeHtml(app.name.slice(0, 2))}</div>`;
 
     item.innerHTML = `
@@ -2170,6 +2178,18 @@ function renderAppDock() {
         <div class="dock-nav-btn" data-nav="1">→</div>
       </div>
     `;
+
+    // 官方图标加载失败时，回退到内置 SVG 兜底图标
+    const brandImg = item.querySelector(".dock-app-icon.has-img img");
+    if (brandImg && brand && brand.svg) {
+      brandImg.addEventListener("error", () => {
+        const box = brandImg.parentElement;
+        if (box) {
+          box.classList.remove("has-img");
+          box.innerHTML = brand.svg;
+        }
+      });
+    }
 
     // 事件绑定（不再拼接 onclick 字符串）
     item.querySelector(".dock-app-delete-btn").addEventListener("click", (e) => {
@@ -2693,7 +2713,7 @@ const CLOUD_QUESTIONS = [
   "有被什么卡住吗？跟我说说也可以。",
   "给现在的状态打个分吧，1 到 10 分？"
 ];
-const CLOUD_FIRST_DELAY_MS = 30 * 1000;      // 进入首页 30 秒后第一次飘出
+const CLOUD_FIRST_DELAY_MS = 10 * 1000;      // 进入首页 10 秒后第一次飘出
 const CLOUD_MIN_GAP_MS = 3 * 60 * 1000;      // 之后每 3~6 分钟随机飘一次
 const CLOUD_MAX_GAP_MS = 6 * 60 * 1000;
 const CLOUD_LINGER_MS = 30 * 1000;           // 无人理会 30 秒后自己飘走

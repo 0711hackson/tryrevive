@@ -518,6 +518,19 @@
     display: block;
   }
 
+  /* 官方图标图片：贴合容器，圆角裁切 */
+  .dock-app-icon.brand-icon.has-img {
+    padding: 6px;
+    overflow: hidden;
+  }
+  .dock-app-icon.brand-icon.has-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    border-radius: 6px;
+  }
+
   .dock-app-label {
     font-size: 0.72rem;
     color: var(--text-muted);
