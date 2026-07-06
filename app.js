@@ -158,6 +158,36 @@ const BUBBLE_TEXTS = [
   "你已经停下来了，这就是很好的一步。"
 ];
 
+const HEART_CLOUD_PROMPTS = {
+  black: [
+    "我看见你有点被卷走了。现在最想从哪里回来？",
+    "状态好像有些乱。此刻真正想守住的目标是什么？",
+    "先不用责备自己。写一句现在最想重新开始的小想法吧。"
+  ],
+  gray: [
+    "现在状态还好吗？今天最想推进的一个小目标是什么？",
+    "路还在。此刻脑子里最值得留下的想法是哪一句？",
+    "要不要把当前的目标收进来，给自己一个更稳的方向？"
+  ],
+  white: [
+    "现在很清醒。想把这份状态留给哪件事？",
+    "你已经回到自己这里了。下一步想轻轻做什么？",
+    "这份专注挺珍贵的。把它写成一句目标吧。"
+  ]
+};
+
+const HEART_CLOUD_PLACEHOLDERS = {
+  black: "例如：先关掉这个页面，喝口水...",
+  gray: "例如：先完成一个 10 分钟的小步骤...",
+  white: "例如：继续写完这一段，保持节奏..."
+};
+
+const HEART_CLOUD_RULES = {
+  black: { minDelay: 22000, maxDelay: 46000, chance: 0.72 },
+  gray: { minDelay: 45000, maxDelay: 90000, chance: 0.42 },
+  white: { minDelay: 90000, maxDelay: 150000, chance: 0.22 }
+};
+
 // 默认设防 App Dock（工厂函数：每次返回全新副本，避免多用户/多处共享同一引用被互相改动）
 function defaultAppDock() {
   return [
@@ -207,6 +237,9 @@ const state = {
   timerInterval: null,
   timeLeft: 300,
   awayStartTime: null,
+  heartCloudTimer: null,
+  heartCloudLastPromptAt: 0,
+  heartCloudSelectedMood: "gray",
   
   // Blocker loop state
   blockerTimerActive: false,
@@ -351,6 +384,28 @@ function registerResize(key, handler) {
   window.addEventListener("resize", handler);
 }
 
+function ensureFloatingHeartLayer() {
+  ["ai-chat-toggle", "heart-cloud-popup", "ai-chat-panel"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.parentElement !== document.body) {
+      document.body.appendChild(el);
+    }
+  });
+}
+
+function updateFloatingHeartVisibility() {
+  ensureFloatingHeartLayer();
+  const shouldShow = state.activeView === "home" || state.activeView === "meditation";
+  const toggle = document.getElementById("ai-chat-toggle");
+  const panel = document.getElementById("ai-chat-panel");
+
+  if (toggle) toggle.style.display = shouldShow ? "flex" : "none";
+  if (!shouldShow) {
+    if (panel) panel.classList.remove("open");
+    dismissHeartCloud();
+  }
+}
+
 // --- 4. 页面过渡控制 (SPA Router) ---
 function switchView(viewName) {
   if (state.canvasAnimIds.avatar) cancelAnimationFrame(state.canvasAnimIds.avatar);
@@ -371,6 +426,13 @@ function switchView(viewName) {
     targetScreen.classList.add("active");
   }
   state.activeView = viewName;
+  ensureFloatingHeartLayer();
+  updateFloatingHeartVisibility();
+  dismissHeartCloud();
+  if (state.heartCloudTimer) {
+    clearTimeout(state.heartCloudTimer);
+    state.heartCloudTimer = null;
+  }
 
   // Initialize specific page logics
   if (viewName === "home") {
@@ -394,6 +456,7 @@ function switchView(viewName) {
     
     // MBTI template warning pre-generation & synchronization
     syncWarningMotivationalDOM();
+    scheduleHeartCloudNudges(7000 + Math.random() * 6000);
     
   } else if (viewName === "meditation") {
     const setupOverlay = document.getElementById("meditation-setup-overlay");
@@ -485,6 +548,12 @@ function loadUserProfile(username) {
     if (loaded.quizAnswers === undefined) {
       loaded.quizAnswers = [];
     }
+    if (loaded.currentGoal === undefined) {
+      loaded.currentGoal = "";
+    }
+    if (loaded.apiKey === undefined) {
+      loaded.apiKey = "";
+    }
     return loaded;
   } catch (e) {
     console.error("Failed to parse user profile:", e);
@@ -524,6 +593,7 @@ async function handleRegister() {
     calmingColor: { h: 220, s: 65, l: 55 },
     showPet: true,
     petStyle: "B",
+    apiKey: "",
     currentGoal: "",
     firstStep: "",
     step2: "",
@@ -1851,6 +1921,9 @@ function triggerThoughtBubble() {
   if (state.userProfile.motivation) {
     pool.push(`终极梦想规划：${state.userProfile.motivation}`);
   }
+  if (state.userProfile.currentGoal) {
+    pool.push(`刚刚的小念头：${state.userProfile.currentGoal}`);
+  }
 
   const text = pool[Math.floor(Math.random() * pool.length)];
   const bubble = document.createElement("div");
@@ -1963,14 +2036,141 @@ function exitMeditationCleanly() {
 }
 
 function askUserStatusDuringHealing() {
-  const feeling = prompt("你现在感觉怎么样？输入数字:\n1. 依然浮躁\n2. 渐入佳境\n3. 豁然开朗");
-  if (feeling === "1") {
-    setAvatarState("black");
-  } else if (feeling === "2") {
-    setAvatarState("gray");
-  } else if (feeling === "3") {
-    setAvatarState("white");
+  showHeartCloudPrompt({ force: true, context: "meditation" });
+}
+
+function getRandomHeartCloudPrompt(statusName, context) {
+  const status = HEART_CLOUD_PROMPTS[statusName] ? statusName : "gray";
+  const pool = [...HEART_CLOUD_PROMPTS[status]];
+  if (context === "meditation") {
+    pool.push("呼吸走到这里了。现在的身体和心里，各自是什么状态？");
+    pool.push("禅修还在继续。此刻浮上来的目标或念头是什么？");
   }
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function updateHeartCloudMoodButtons(statusName) {
+  document.querySelectorAll("[data-heart-mood]").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.heartMood === statusName);
+  });
+}
+
+function showHeartCloudPrompt(options = {}) {
+  ensureFloatingHeartLayer();
+  const popup = document.getElementById("heart-cloud-popup");
+  if (!popup) return;
+
+  const force = options.force === true;
+  const context = options.context || state.activeView;
+  const chatPanel = document.getElementById("ai-chat-panel");
+  const chatIsOpen = chatPanel && chatPanel.classList.contains("open");
+
+  if (!force) {
+    if (state.activeView !== "home") return;
+    if (chatIsOpen) return;
+    if (Date.now() - state.heartCloudLastPromptAt < 70000) return;
+  }
+
+  const status = state.avatarState || "gray";
+  state.heartCloudSelectedMood = status;
+  state.heartCloudLastPromptAt = Date.now();
+
+  const question = document.getElementById("heart-cloud-question");
+  const input = document.getElementById("heart-cloud-input");
+  const feedback = document.getElementById("heart-cloud-feedback");
+
+  if (question) question.textContent = getRandomHeartCloudPrompt(status, context);
+  if (input) {
+    input.value = "";
+    input.placeholder = HEART_CLOUD_PLACEHOLDERS[status] || HEART_CLOUD_PLACEHOLDERS.gray;
+  }
+  if (feedback) feedback.textContent = "";
+
+  updateHeartCloudMoodButtons(status);
+  popup.classList.add("active");
+
+  if (force && input) {
+    setTimeout(() => input.focus(), 180);
+  }
+}
+
+function dismissHeartCloud() {
+  const popup = document.getElementById("heart-cloud-popup");
+  if (popup) popup.classList.remove("active");
+}
+
+function setHeartCloudMood(statusName) {
+  if (!HEART_CLOUD_PROMPTS[statusName]) return;
+
+  state.heartCloudSelectedMood = statusName;
+  setAvatarState(statusName);
+  updateHeartCloudMoodButtons(statusName);
+
+  const question = document.getElementById("heart-cloud-question");
+  const input = document.getElementById("heart-cloud-input");
+  const feedback = document.getElementById("heart-cloud-feedback");
+
+  if (question) question.textContent = getRandomHeartCloudPrompt(statusName, state.activeView);
+  if (input) input.placeholder = HEART_CLOUD_PLACEHOLDERS[statusName] || HEART_CLOUD_PLACEHOLDERS.gray;
+  if (feedback) feedback.textContent = "";
+}
+
+function submitHeartCloud() {
+  const input = document.getElementById("heart-cloud-input");
+  const feedback = document.getElementById("heart-cloud-feedback");
+  const text = input ? input.value.trim() : "";
+
+  if (!text) {
+    if (feedback) feedback.textContent = "留一句很小的也可以。";
+    if (input) input.focus();
+    return;
+  }
+
+  state.userProfile.currentGoal = text;
+  if (!state.userProfile.firstStep) {
+    state.userProfile.firstStep = text;
+    const goalInput = document.getElementById("goal-first-step-input");
+    if (goalInput) goalInput.value = text;
+  }
+
+  saveProfile();
+  syncWarningMotivationalDOM();
+
+  if (feedback) feedback.textContent = "收到了，已经放进今天的心语里。";
+  setTimeout(dismissHeartCloud, 1200);
+}
+
+function openHeartCloudChat() {
+  const cloudInput = document.getElementById("heart-cloud-input");
+  const draft = cloudInput ? cloudInput.value.trim() : "";
+
+  dismissHeartCloud();
+  toggleAIChat(true);
+
+  const chatInput = document.getElementById("ai-chat-input");
+  if (chatInput) {
+    if (draft) chatInput.value = draft;
+    setTimeout(() => chatInput.focus(), 180);
+  }
+}
+
+function scheduleHeartCloudNudges(initialDelayMs) {
+  if (state.heartCloudTimer) clearTimeout(state.heartCloudTimer);
+
+  const status = state.avatarState || "gray";
+  const rule = HEART_CLOUD_RULES[status] || HEART_CLOUD_RULES.gray;
+  const delay = Number.isFinite(initialDelayMs)
+    ? initialDelayMs
+    : rule.minDelay + Math.random() * (rule.maxDelay - rule.minDelay);
+
+  state.heartCloudTimer = setTimeout(() => {
+    state.heartCloudTimer = null;
+    if (state.activeView === "home") {
+      const chance = PREFERS_REDUCED_MOTION ? Math.min(rule.chance, 0.18) : rule.chance;
+      if (Math.random() < chance) showHeartCloudPrompt();
+      scheduleHeartCloudNudges();
+    }
+  }, delay);
 }
 
 // --- 14. 0-1 Goal Coach Popup Controls ---
@@ -2426,6 +2626,7 @@ async function fetchAICoachFeedback(promptType, callback) {
   const userMessage = `
   用户 MBTI: ${state.userProfile.mbti}
   今日终极目标: ${state.userProfile.motivation}
+  眼前最新目标或想法: ${state.userProfile.currentGoal || "未记录"}
   当前步骤计划: 1. ${state.userProfile.firstStep || "未设定"} | 2. ${state.userProfile.step2 || "未设定"} | 3. ${state.userProfile.step3 || "未设定"}
   触发情境: ${promptType === "blocker" ? "用户在使用被设防的应用超时，需要警醒防线" : "用户刚完成一轮禅想冷静，准备重新上路自律"}
   `;
@@ -2448,10 +2649,12 @@ async function fetchAICoachFeedback(promptType, callback) {
 const chatState = { history: [], busy: false };
 
 function toggleAIChat(forceOpen) {
+  ensureFloatingHeartLayer();
   const panel = document.getElementById("ai-chat-panel");
   if (!panel) return;
   const open = forceOpen === true || !panel.classList.contains("open");
   panel.classList.toggle("open", open);
+  if (open) dismissHeartCloud();
   const list = document.getElementById("ai-chat-messages");
   if (open && list && !list.children.length) {
     appendChatBubble("assistant", "我在。想聊聊你现在正被什么占据，或者今天真正想完成的那件事吗？");
@@ -2487,7 +2690,7 @@ async function sendAIChat() {
   chatState.busy = true;
 
   const systemPrompt = `你是 tryrevive 的陪伴者——温和、清醒、简短。用户正在练习把注意力从推荐流夺回到自己的人生。
-用户画像：MBTI=${state.userProfile.mbti || "未知"}；今日目标=${state.userProfile.motivation || "未设定"}；计划步骤=1.${state.userProfile.firstStep || "未定"} 2.${state.userProfile.step2 || "未定"} 3.${state.userProfile.step3 || "未定"}。
+用户画像：MBTI=${state.userProfile.mbti || "未知"}；今日目标=${state.userProfile.motivation || "未设定"}；眼前最新目标或想法=${state.userProfile.currentGoal || "未记录"}；计划步骤=1.${state.userProfile.firstStep || "未定"} 2.${state.userProfile.step2 || "未定"} 3.${state.userProfile.step3 || "未定"}。
 原则：每次回复不超过 80 字；像朋友轻声对话，不说教、不羞辱、不喊口号；倾听并接住情绪，再轻轻把话题引回"当下能做的最小一步"；适时提出一个具体的小问题帮对方想清楚。`;
 
   try {
@@ -2654,4 +2857,3 @@ if (window.chrome && chrome.runtime && chrome.runtime.onMessage) {
     }
   });
 }
-

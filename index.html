@@ -318,6 +318,22 @@
       <button id="ai-chat-toggle" class="ai-chat-toggle" onclick="toggleAIChat()" title="和 AI 聊聊">
         <span class="ai-chat-orb"></span>
       </button>
+      <div id="heart-cloud-popup" class="heart-cloud-popup" aria-live="polite" aria-label="心语小云朵">
+        <button type="button" class="heart-cloud-close" onclick="dismissHeartCloud()" aria-label="收起心语小云朵">×</button>
+        <div class="heart-cloud-kicker">心语小云朵</div>
+        <div id="heart-cloud-question" class="heart-cloud-question">现在状态还好吗？</div>
+        <div class="heart-cloud-moods" aria-label="选择当前状态">
+          <button type="button" data-heart-mood="black" onclick="setHeartCloudMood('black')">有点乱</button>
+          <button type="button" data-heart-mood="gray" onclick="setHeartCloudMood('gray')">还可以</button>
+          <button type="button" data-heart-mood="white" onclick="setHeartCloudMood('white')">很清醒</button>
+        </div>
+        <input type="text" id="heart-cloud-input" class="heart-cloud-input" placeholder="写下现在的目标或想法..." autocomplete="off" onkeypress="if(event.key==='Enter'){submitHeartCloud()}">
+        <div id="heart-cloud-feedback" class="heart-cloud-feedback"></div>
+        <div class="heart-cloud-actions">
+          <button type="button" onclick="submitHeartCloud()" class="heart-cloud-primary">存下这一句</button>
+          <button type="button" onclick="openHeartCloudChat()" class="heart-cloud-secondary">继续聊聊</button>
+        </div>
+      </div>
       <div id="ai-chat-panel" class="ai-chat-panel">
         <div class="ai-chat-head">
           <span>心语 · 和自己对话</span>
