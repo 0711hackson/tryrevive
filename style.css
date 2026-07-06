@@ -508,6 +508,16 @@
     border-color: var(--accent);
   }
 
+  /* 品牌 SVG 图标：撑满圆角容器，留一点内边距呼吸感 */
+  .dock-app-icon.brand-icon {
+    padding: 8px;
+  }
+  .dock-app-icon.brand-icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
   .dock-app-label {
     font-size: 0.72rem;
     color: var(--text-muted);
@@ -1305,6 +1315,71 @@
   0%,100% { transform: scale(1); opacity: .8; }
   50%     { transform: scale(1.15); opacity: 1; }
 }
+
+/* ☁️ 云朵心语：定时飘出来的状态问候 */
+.cloud-checkin {
+  position: fixed;
+  right: 90px;
+  bottom: 32px;
+  max-width: 260px;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.7rem 1rem;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 22px 22px 6px 22px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.12);
+  cursor: pointer;
+  z-index: 95;
+  opacity: 0;
+  transform: translateX(24px) translateY(6px) scale(0.92);
+  pointer-events: none;
+  transition: opacity 0.6s var(--transition-easing), transform 0.6s var(--transition-easing);
+}
+.cloud-checkin.show {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.cloud-checkin:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--accent, #8ab4ff);
+}
+.cloud-checkin-emoji {
+  font-size: 1.35rem;
+  line-height: 1;
+  animation: cloud-drift 4.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(255,255,255,0.35));
+}
+@keyframes cloud-drift {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+.cloud-checkin-text {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text-primary, #eee);
+}
+.cloud-checkin-close {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(30, 32, 45, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-muted, #999);
+  font-size: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.cloud-checkin-close:hover { color: #fff; }
 
 .ai-chat-panel {
   position: fixed;

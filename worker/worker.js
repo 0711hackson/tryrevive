@@ -7,9 +7,13 @@
 const ALLOWED_ORIGINS = [
   "https://tryrevive.online",
   "https://www.tryrevive.online",
+  "http://tryrevive.online",
+  "http://www.tryrevive.online",
   "https://sophia-yuanyuan.github.io",
   "http://localhost:8000",
-  "http://127.0.0.1:8000"
+  "http://127.0.0.1:8000",
+  "http://localhost:8080",
+  "http://127.0.0.1:8080"
 ];
 
 const ALLOWED_MODELS = [
