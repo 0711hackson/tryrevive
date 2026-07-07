@@ -1,0 +1,80 @@
+{
+  "source": "https://linear.app",
+  "tokens": {
+    "spacing": {
+      "scale": [8, 12, 16, 24, 32, 64, 72, 224, 274],
+      "base_unit": 8
+    },
+    "typography": {
+      "families": ["Inter Variable", "Berkeley Mono"],
+      "scale": [
+        { "role": "display-large", "size": "72px", "weight": "510", "family": "Inter Variable" },
+        { "role": "hero", "size": "64px", "weight": "510", "family": "Inter Variable" },
+        { "role": "h1", "size": "48px", "weight": "510", "family": "Inter Variable" },
+        { "role": "h3", "size": "24px", "weight": "590", "family": "Inter Variable" },
+        { "role": "body-large", "size": "20px", "weight": "510", "family": "Inter Variable" },
+        { "role": "h4", "size": "16px", "weight": "590", "family": "Inter Variable" },
+        { "role": "body", "size": "15px", "weight": "400", "family": "Inter Variable" },
+        { "role": "caption", "size": "13px", "weight": "510", "family": "Inter Variable" }
+      ]
+    },
+    "colors": [
+      { "role": "background", "value": "#08090a" },
+      { "role": "text-primary", "value": "#f7f8f8" },
+      { "role": "text-secondary", "value": "#d0d6e0" },
+      { "role": "text-muted", "value": "#8a8f98" },
+      { "role": "text-dark-muted", "value": "#62666d" },
+      { "role": "surface", "value": "rgba(255,255,255,0.05)" },
+      { "role": "surface-dark", "value": "#18191a" },
+      { "role": "border", "value": "#23252a" },
+      { "role": "accent-purple", "value": "#5e6ad2" },
+      { "role": "accent-blue", "value": "#004eff" }
+    ],
+    "radius": ["2px", "4px", "6px", "8px", "12px", "9999px"],
+    "shadows": [
+      "rgba(255, 255, 255, 0.03) 0px 0px 0px 1px inset, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset, rgba(0, 0, 0, 0.6) 0px 0px 0px 1px, rgba(0, 0, 0, 0.1) 0px 4px 4px 0px",
+      "rgba(0, 0, 0, 0.4) 0px 2px 4px 0px",
+      "rgba(0, 0, 0, 0.2) 0px 0px 0px 1px"
+    ],
+    "image_ratios": [
+      { "usage": "hero", "ratio": "2.15:1" },
+      { "usage": "hero-full", "ratio": "1.79:1" },
+      { "usage": "feature", "ratio": "1.78:1" }
+    ],
+    "grid": {
+      "max_width": "1440px",
+      "columns": 4,
+      "gutter": "64px"
+    }
+  },
+  "taste": [
+    {
+      "name": "Restraint of Brand Accent",
+      "trigger": "When selecting background and interactive colors for the workspace tool",
+      "decision": "Chose an entirely near-black background (#08090a) and white/gray typography (#f7f8f8, #d0d6e0), restricting primary brand accents (#5e6ad2) strictly to key interactive surfaces",
+      "reason": "Because on near-black backgrounds, high contrast white text already draws strong visual attention. Adding excessive bright branding colors would distract the user from content and cheapen the aesthetic to a generic template",
+      "evidence": ["rgb(8,9,10) pageBackground", "accentCandidates are primarily whites and grays, with bright purple used only for primary button actions"]
+    },
+    {
+      "name": "Engraved Depth over Projected Layers",
+      "trigger": "When defining bounds and visual weight for layout panels and card surfaces",
+      "decision": "Chose thin inset borders and multi-layered border outlines (1px border-color #23252a inset) instead of standard fuzzy outer drop shadows",
+      "reason": "Because on dark canvases, drop shadows look muddy and imply separated floating sections. Crisp inset borders make panels feel engraved into the interface, reflecting the precision of a professional developer tool",
+      "evidence": ["rgb(35, 37, 42) 0px 0px 0px 1px inset", "rgba(255,255,255,0.03) 0px 0px 0px 1px inset"]
+    },
+    {
+      "name": "Macro-pauses via Massive Section Gaps",
+      "trigger": "When spacing out content modules along the vertical scroll layout",
+      "decision": "Chose massive, deliberate vertical gaps of 224px to 274px over standard 80px–100px block margins",
+      "reason": "Because massive vertical margins create natural pauses that isolate distinct features, ensuring the user digests one key capability before moving to the next, prioritising focus over a compact scroll footprint",
+      "evidence": ["sectionGaps of 224px and 274px"]
+    },
+    {
+      "name": "Optical Typographic Weights",
+      "trigger": "When setting typographic weights for display headers and large titles",
+      "decision": "Chose custom intermediate optical weights (510 weight for H1/H2 sizes, 590 weight for subheadings) instead of standard bold (700) or medium (500)",
+      "reason": "Because at large display sizes (48px–72px), standard bold weights bloat letter forms and clog white space, while custom intermediate weights retain high legibility and precise visual balance",
+      "evidence": ["H1 size 64px weight 510", "H2 size 48px/72px weight 510", "H3 size 20px/24px weight 590"]
+    }
+  ]
+}
