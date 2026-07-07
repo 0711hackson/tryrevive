@@ -158,36 +158,6 @@ const BUBBLE_TEXTS = [
   "你已经停下来了，这就是很好的一步。"
 ];
 
-const HEART_CLOUD_PROMPTS = {
-  black: [
-    "我看见你有点被卷走了。现在最想从哪里回来？",
-    "状态好像有些乱。此刻真正想守住的目标是什么？",
-    "先不用责备自己。写一句现在最想重新开始的小想法吧。"
-  ],
-  gray: [
-    "现在状态还好吗？今天最想推进的一个小目标是什么？",
-    "路还在。此刻脑子里最值得留下的想法是哪一句？",
-    "要不要把当前的目标收进来，给自己一个更稳的方向？"
-  ],
-  white: [
-    "现在很清醒。想把这份状态留给哪件事？",
-    "你已经回到自己这里了。下一步想轻轻做什么？",
-    "这份专注挺珍贵的。把它写成一句目标吧。"
-  ]
-};
-
-const HEART_CLOUD_PLACEHOLDERS = {
-  black: "例如：先关掉这个页面，喝口水...",
-  gray: "例如：先完成一个 10 分钟的小步骤...",
-  white: "例如：继续写完这一段，保持节奏..."
-};
-
-const HEART_CLOUD_RULES = {
-  black: { minDelay: 22000, maxDelay: 46000, chance: 0.72 },
-  gray: { minDelay: 45000, maxDelay: 90000, chance: 0.42 },
-  white: { minDelay: 90000, maxDelay: 150000, chance: 0.22 }
-};
-
 // 默认设防 App Dock（工厂函数：每次返回全新副本，避免多用户/多处共享同一引用被互相改动）
 function defaultAppDock() {
   return [
@@ -197,8 +167,85 @@ function defaultAppDock() {
     { id: "weibo", name: "微博", url: "https://weibo.com", color: "#e6162d" },
     { id: "taobao", name: "淘宝", url: "https://www.taobao.com", color: "#ff5000" },
     { id: "pinduoduo", name: "拼多多", url: "https://www.pinduoduo.com", color: "#e02e24" },
-    { id: "netease", name: "网易云", url: "https://music.163.com", color: "#c20c0c" }
+    { id: "netease", name: "网易云", url: "https://music.163.com", color: "#c20c0c" },
+    { id: "lanshi", name: "烂开始", url: "lanshi/index.html", color: "#10b981" }
   ];
+}
+
+// --- 1a. 品牌图标库（内联 SVG，不依赖外部图床，国内访问零延迟） ---
+function glyphIcon(ch, size) {
+  return `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><text x="24" y="25" text-anchor="middle" dominant-baseline="central" font-size="${size || 24}" font-weight="700" fill="#fff" font-family="'PingFang SC','Microsoft YaHei',sans-serif">${ch}</text></svg>`;
+}
+
+const DOUYIN_NOTE_PATH = "M31.5 6c.7 4.3 3.9 7.7 8.5 8.3v6.4c-3.2-.1-6.2-1.1-8.5-2.8v13.3c0 6.9-5.6 12.4-12.4 12.4S6.7 38.1 6.7 31.2 12.3 18.8 19.1 18.8c.7 0 1.4.1 2 .2v6.9c-.6-.2-1.3-.3-2-.3-3.1 0-5.6 2.5-5.6 5.6s2.5 5.6 5.6 5.6 5.6-2.5 5.6-5.6V6h6.8z";
+
+// img = 官方图标文件（已下载入库 icons/ 目录）；svg = 加载失败时的兜底图标
+const BRAND_ICONS = {
+  bilibili: {
+    img: "icons/bilibili.ico",
+    bg: "#00AEEC",
+    svg: `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path d="M15 7l6 6M33 7l-6 6" stroke="#fff" stroke-width="3.4" stroke-linecap="round"/><rect x="7" y="13" width="34" height="26" rx="7" fill="#fff"/><rect x="16" y="21" width="3.6" height="9" rx="1.8" fill="#00AEEC"/><rect x="28.4" y="21" width="3.6" height="9" rx="1.8" fill="#00AEEC"/></svg>`
+  },
+  douyin: {
+    img: "icons/douyin.ico",
+    bg: "#161823",
+    svg: `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><g transform="translate(1.5,1.5) scale(0.94)"><path d="${DOUYIN_NOTE_PATH}" fill="#25F4EE" transform="translate(-1.6,-1.6)"/><path d="${DOUYIN_NOTE_PATH}" fill="#FE2C55" transform="translate(1.6,1.6)"/><path d="${DOUYIN_NOTE_PATH}" fill="#fff"/></g></svg>`
+  },
+  weibo: {
+    img: "icons/weibo.ico",
+    bg: "#E6162D",
+    svg: `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path d="M32 6.5c6.2-.4 10.6 4.4 9.3 10.4" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M32.5 13c3.2-.2 5.5 2.3 4.8 5.4" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="20.5" cy="30" rx="15" ry="11.5" fill="#fff"/><ellipse cx="20.5" cy="30" rx="7.2" ry="6.8" fill="#E6162D"/><circle cx="18.4" cy="28.2" r="2.3" fill="#fff"/></svg>`
+  },
+  xiaohongshu: { img: "icons/xiaohongshu.ico", bg: "#FF2442", svg: glyphIcon("小红书", 12.5) },
+  taobao: { img: "icons/taobao.ico", bg: "#FF5000", svg: glyphIcon("淘", 23) },
+  pinduoduo: { bg: "#E02E24", svg: glyphIcon("拼", 23) },
+  zhihu: { img: "icons/zhihu.ico", bg: "#0084FF", svg: glyphIcon("知", 23) },
+  netease: {
+    img: "icons/netease.ico",
+    bg: "#DD1D1D",
+    svg: `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="26" r="14" fill="none" stroke="#fff" stroke-width="3.2"/><path d="M27.5 8c-3 3.2-3.6 7-2 11" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="24" cy="26" r="4.6" fill="#fff"/></svg>`
+  },
+  wechat_mp: {
+    img: "icons/wechat_mp.ico",
+    bg: "#07C160",
+    svg: `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path d="M19 8C11.8 8 6 13 6 19.2c0 3.6 2 6.8 5.1 8.8l-1.3 4.2 4.6-2.4c1.4.4 3 .6 4.6.6h1.3c-.3-1-.5-2-.5-3.1 0-6.4 6.2-11.6 13.8-11.6h.7C33 11.5 26.6 8 19 8z" fill="#fff"/><path d="M33.5 18c-6.4 0-11.5 4.3-11.5 9.7s5.1 9.7 11.5 9.7c1.3 0 2.6-.2 3.8-.5l3.9 2-1.1-3.6c2.9-1.8 4.9-4.5 4.9-7.6 0-5.4-5.1-9.7-11.5-9.7z" fill="#fff" opacity=".95"/><circle cx="14.5" cy="17.5" r="1.8" fill="#07C160"/><circle cx="23.5" cy="17.5" r="1.8" fill="#07C160"/><circle cx="29.8" cy="26.6" r="1.5" fill="#07C160"/><circle cx="37.4" cy="26.6" r="1.5" fill="#07C160"/></svg>`
+  },
+  lanshi: {
+    bg: "linear-gradient(135deg, #34d399, #059669)",
+    svg: `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path d="M24 40V23" stroke="#fff" stroke-width="3.4" stroke-linecap="round"/><path d="M24 26c-.5-8-5.5-13-14-13 .5 9 6 13.8 14 13z" fill="#fff"/><path d="M24 21.5c.4-6.5 4.8-10.5 11.8-10.5-.4 7.2-5 11.1-11.8 10.5z" fill="#fff" opacity=".85"/></svg>`
+  }
+};
+
+// URL 域名 → 品牌 key（用户通过「添加」弹窗自定义的 App 也能匹配到官方图标）
+const BRAND_DOMAIN_MAP = [
+  ["xiaohongshu.com", "xiaohongshu"],
+  ["bilibili.com", "bilibili"],
+  ["douyin.com", "douyin"],
+  ["weibo.com", "weibo"],
+  ["taobao.com", "taobao"],
+  ["pinduoduo.com", "pinduoduo"],
+  ["music.163.com", "netease"],
+  ["zhihu.com", "zhihu"],
+  ["weixin.qq.com", "wechat_mp"]
+];
+
+function resolveBrandIcon(app) {
+  if (!app) return null;
+  if (BRAND_ICONS[app.id]) return BRAND_ICONS[app.id];
+  const url = (app.url || "").trim();
+  // 站内页面只可能是烂开始
+  if (isInternalUrl(url)) return BRAND_ICONS.lanshi;
+  // 外链按域名精确匹配（含子域）；不做全串子串匹配，防止路径里混入品牌域名冒充官方图标
+  let host = "";
+  try {
+    host = new URL(/^https?:\/\//i.test(url) ? url : "https://" + url).hostname.toLowerCase();
+  } catch (e) {
+    return null;
+  }
+  for (const pair of BRAND_DOMAIN_MAP) {
+    if (host === pair[0] || host.endsWith("." + pair[0])) return BRAND_ICONS[pair[1]];
+  }
+  return null;
 }
 
 // 统一持久化：所有存档写入都走这里，避免散落 10+ 处的重复 setItem
@@ -220,14 +267,16 @@ const state = {
     calmingColor: { h: 220, s: 65, l: 55 }, // HSL with custom lightness
     showPet: true, // 桌宠小人开启/隐藏开关
     apiKey: "", // Anthropic API Key
+    aiProxyUrl: "", // Cloudflare Worker 代理地址（优先于直连）
     currentGoal: "",
     firstStep: "",
     step2: "",
     step3: "",
     quizAnswers: [],
-    
+
     // User Custom App Dock config
-    appDock: defaultAppDock()
+    appDock: defaultAppDock(),
+    lanshiMigrated: true
   },
   activeView: "narrative",
   avatarState: "gray",       // "black" | "gray" | "white"
@@ -237,9 +286,6 @@ const state = {
   timerInterval: null,
   timeLeft: 300,
   awayStartTime: null,
-  heartCloudTimer: null,
-  heartCloudLastPromptAt: 0,
-  heartCloudSelectedMood: "gray",
   
   // Blocker loop state
   blockerTimerActive: false,
@@ -384,28 +430,6 @@ function registerResize(key, handler) {
   window.addEventListener("resize", handler);
 }
 
-function ensureFloatingHeartLayer() {
-  ["ai-chat-toggle", "heart-cloud-popup", "ai-chat-panel"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el && el.parentElement !== document.body) {
-      document.body.appendChild(el);
-    }
-  });
-}
-
-function updateFloatingHeartVisibility() {
-  ensureFloatingHeartLayer();
-  const shouldShow = state.activeView === "home" || state.activeView === "meditation";
-  const toggle = document.getElementById("ai-chat-toggle");
-  const panel = document.getElementById("ai-chat-panel");
-
-  if (toggle) toggle.style.display = shouldShow ? "flex" : "none";
-  if (!shouldShow) {
-    if (panel) panel.classList.remove("open");
-    dismissHeartCloud();
-  }
-}
-
 // --- 4. 页面过渡控制 (SPA Router) ---
 function switchView(viewName) {
   if (state.canvasAnimIds.avatar) cancelAnimationFrame(state.canvasAnimIds.avatar);
@@ -418,6 +442,10 @@ function switchView(viewName) {
   state.meditationActive = false;
   stopOceanWaves();
 
+  // 云朵心语：离开当前页先收起并停止排程（进入首页时再重新开始）
+  hideCloudCheckin();
+  clearTimeout(cloudState.showTimer);
+
   const screens = document.querySelectorAll(".view-screen");
   screens.forEach(screen => screen.classList.remove("active"));
 
@@ -426,13 +454,6 @@ function switchView(viewName) {
     targetScreen.classList.add("active");
   }
   state.activeView = viewName;
-  ensureFloatingHeartLayer();
-  updateFloatingHeartVisibility();
-  dismissHeartCloud();
-  if (state.heartCloudTimer) {
-    clearTimeout(state.heartCloudTimer);
-    state.heartCloudTimer = null;
-  }
 
   // Initialize specific page logics
   if (viewName === "home") {
@@ -456,8 +477,10 @@ function switchView(viewName) {
     
     // MBTI template warning pre-generation & synchronization
     syncWarningMotivationalDOM();
-    scheduleHeartCloudNudges(7000 + Math.random() * 6000);
-    
+
+    // 云朵心语：定时飘出来问候状态
+    scheduleCloudCheckin(CLOUD_FIRST_DELAY_MS);
+
   } else if (viewName === "meditation") {
     const setupOverlay = document.getElementById("meditation-setup-overlay");
     const goalReview = document.getElementById("meditation-goal-review");
@@ -476,9 +499,11 @@ function switchView(viewName) {
     const customQuoteInput = document.getElementById("input-custom-quote");
     const motivationInput = document.getElementById("input-motivation");
     const apiKeyInput = document.getElementById("input-api-key");
+    const aiProxyInput = document.getElementById("input-ai-proxy");
     if (customQuoteInput) customQuoteInput.value = state.userProfile.customQuote || "";
     if (motivationInput) motivationInput.value = state.userProfile.motivation || "";
     if (apiKeyInput) apiKeyInput.value = state.userProfile.apiKey || "";
+    if (aiProxyInput) aiProxyInput.value = state.userProfile.aiProxyUrl || "";
     
     // Set pet style radio checks
     const petStyle = state.userProfile.petStyle || "B";
@@ -533,6 +558,23 @@ function loadUserProfile(username) {
     if (!loaded.appDock) {
       loaded.appDock = defaultAppDock();
     }
+    if (Array.isArray(loaded.appDock)) {
+      // 修复旧版 saveCustomApp 给站内路径误加 https:// 前缀产生的坏链接
+      loaded.appDock.forEach(a => {
+        if (a && /^https?:\/\/lanshi\//i.test(String(a.url || ""))) {
+          a.url = "lanshi/index.html";
+        }
+      });
+      // 旧存档迁移：补上「烂开始」入口（只迁移一次，之后尊重用户的删除操作）
+      if (!loaded.lanshiMigrated &&
+          !loaded.appDock.some(a => a && (a.id === "lanshi" || String(a.url || "").indexOf("lanshi/") !== -1))) {
+        loaded.appDock.push({ id: "lanshi", name: "烂开始", url: "lanshi/index.html", color: "#10b981" });
+      }
+      loaded.lanshiMigrated = true;
+    }
+    if (loaded.aiProxyUrl === undefined) {
+      loaded.aiProxyUrl = "";
+    }
     if (loaded.calmingColor === undefined) {
       loaded.calmingColor = { h: 220, s: 65, l: 55 };
     }
@@ -547,12 +589,6 @@ function loadUserProfile(username) {
     }
     if (loaded.quizAnswers === undefined) {
       loaded.quizAnswers = [];
-    }
-    if (loaded.currentGoal === undefined) {
-      loaded.currentGoal = "";
-    }
-    if (loaded.apiKey === undefined) {
-      loaded.apiKey = "";
     }
     return loaded;
   } catch (e) {
@@ -590,17 +626,18 @@ async function handleRegister() {
     mbti: "INTJ-A",
     motivation: "",
     customQuote: "",
+    aiProxyUrl: "",
     calmingColor: { h: 220, s: 65, l: 55 },
     showPet: true,
     petStyle: "B",
-    apiKey: "",
     currentGoal: "",
     firstStep: "",
     step2: "",
     step3: "",
     quizAnswers: [],
 
-    appDock: defaultAppDock()
+    appDock: defaultAppDock(),
+    lanshiMigrated: true
   };
 
   startQuiz();
@@ -1016,10 +1053,13 @@ function completeOnboarding() {
   const motivationInput = document.getElementById("input-motivation").value.trim();
   const customQuoteInput = document.getElementById("input-custom-quote").value.trim();
   const apiKeyInput = document.getElementById("input-api-key").value.trim();
-  
+  const aiProxyEl = document.getElementById("input-ai-proxy");
+  const aiProxyInput = aiProxyEl ? aiProxyEl.value.trim() : "";
+
   state.userProfile.motivation = motivationInput || "逃离算法洪流，自律重生。";
   state.userProfile.customQuote = customQuoteInput || "";
   state.userProfile.apiKey = apiKeyInput || "";
+  state.userProfile.aiProxyUrl = aiProxyInput || "";
   
   // Save pet style option
   const selectedStyleEl = document.querySelector('input[name="pet-style-option"]:checked');
@@ -1921,9 +1961,6 @@ function triggerThoughtBubble() {
   if (state.userProfile.motivation) {
     pool.push(`终极梦想规划：${state.userProfile.motivation}`);
   }
-  if (state.userProfile.currentGoal) {
-    pool.push(`刚刚的小念头：${state.userProfile.currentGoal}`);
-  }
 
   const text = pool[Math.floor(Math.random() * pool.length)];
   const bubble = document.createElement("div");
@@ -2036,141 +2073,14 @@ function exitMeditationCleanly() {
 }
 
 function askUserStatusDuringHealing() {
-  showHeartCloudPrompt({ force: true, context: "meditation" });
-}
-
-function getRandomHeartCloudPrompt(statusName, context) {
-  const status = HEART_CLOUD_PROMPTS[statusName] ? statusName : "gray";
-  const pool = [...HEART_CLOUD_PROMPTS[status]];
-  if (context === "meditation") {
-    pool.push("呼吸走到这里了。现在的身体和心里，各自是什么状态？");
-    pool.push("禅修还在继续。此刻浮上来的目标或念头是什么？");
+  const feeling = prompt("你现在感觉怎么样？输入数字:\n1. 依然浮躁\n2. 渐入佳境\n3. 豁然开朗");
+  if (feeling === "1") {
+    setAvatarState("black");
+  } else if (feeling === "2") {
+    setAvatarState("gray");
+  } else if (feeling === "3") {
+    setAvatarState("white");
   }
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
-function updateHeartCloudMoodButtons(statusName) {
-  document.querySelectorAll("[data-heart-mood]").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.heartMood === statusName);
-  });
-}
-
-function showHeartCloudPrompt(options = {}) {
-  ensureFloatingHeartLayer();
-  const popup = document.getElementById("heart-cloud-popup");
-  if (!popup) return;
-
-  const force = options.force === true;
-  const context = options.context || state.activeView;
-  const chatPanel = document.getElementById("ai-chat-panel");
-  const chatIsOpen = chatPanel && chatPanel.classList.contains("open");
-
-  if (!force) {
-    if (state.activeView !== "home") return;
-    if (chatIsOpen) return;
-    if (Date.now() - state.heartCloudLastPromptAt < 70000) return;
-  }
-
-  const status = state.avatarState || "gray";
-  state.heartCloudSelectedMood = status;
-  state.heartCloudLastPromptAt = Date.now();
-
-  const question = document.getElementById("heart-cloud-question");
-  const input = document.getElementById("heart-cloud-input");
-  const feedback = document.getElementById("heart-cloud-feedback");
-
-  if (question) question.textContent = getRandomHeartCloudPrompt(status, context);
-  if (input) {
-    input.value = "";
-    input.placeholder = HEART_CLOUD_PLACEHOLDERS[status] || HEART_CLOUD_PLACEHOLDERS.gray;
-  }
-  if (feedback) feedback.textContent = "";
-
-  updateHeartCloudMoodButtons(status);
-  popup.classList.add("active");
-
-  if (force && input) {
-    setTimeout(() => input.focus(), 180);
-  }
-}
-
-function dismissHeartCloud() {
-  const popup = document.getElementById("heart-cloud-popup");
-  if (popup) popup.classList.remove("active");
-}
-
-function setHeartCloudMood(statusName) {
-  if (!HEART_CLOUD_PROMPTS[statusName]) return;
-
-  state.heartCloudSelectedMood = statusName;
-  setAvatarState(statusName);
-  updateHeartCloudMoodButtons(statusName);
-
-  const question = document.getElementById("heart-cloud-question");
-  const input = document.getElementById("heart-cloud-input");
-  const feedback = document.getElementById("heart-cloud-feedback");
-
-  if (question) question.textContent = getRandomHeartCloudPrompt(statusName, state.activeView);
-  if (input) input.placeholder = HEART_CLOUD_PLACEHOLDERS[statusName] || HEART_CLOUD_PLACEHOLDERS.gray;
-  if (feedback) feedback.textContent = "";
-}
-
-function submitHeartCloud() {
-  const input = document.getElementById("heart-cloud-input");
-  const feedback = document.getElementById("heart-cloud-feedback");
-  const text = input ? input.value.trim() : "";
-
-  if (!text) {
-    if (feedback) feedback.textContent = "留一句很小的也可以。";
-    if (input) input.focus();
-    return;
-  }
-
-  state.userProfile.currentGoal = text;
-  if (!state.userProfile.firstStep) {
-    state.userProfile.firstStep = text;
-    const goalInput = document.getElementById("goal-first-step-input");
-    if (goalInput) goalInput.value = text;
-  }
-
-  saveProfile();
-  syncWarningMotivationalDOM();
-
-  if (feedback) feedback.textContent = "收到了，已经放进今天的心语里。";
-  setTimeout(dismissHeartCloud, 1200);
-}
-
-function openHeartCloudChat() {
-  const cloudInput = document.getElementById("heart-cloud-input");
-  const draft = cloudInput ? cloudInput.value.trim() : "";
-
-  dismissHeartCloud();
-  toggleAIChat(true);
-
-  const chatInput = document.getElementById("ai-chat-input");
-  if (chatInput) {
-    if (draft) chatInput.value = draft;
-    setTimeout(() => chatInput.focus(), 180);
-  }
-}
-
-function scheduleHeartCloudNudges(initialDelayMs) {
-  if (state.heartCloudTimer) clearTimeout(state.heartCloudTimer);
-
-  const status = state.avatarState || "gray";
-  const rule = HEART_CLOUD_RULES[status] || HEART_CLOUD_RULES.gray;
-  const delay = Number.isFinite(initialDelayMs)
-    ? initialDelayMs
-    : rule.minDelay + Math.random() * (rule.maxDelay - rule.minDelay);
-
-  state.heartCloudTimer = setTimeout(() => {
-    state.heartCloudTimer = null;
-    if (state.activeView === "home") {
-      const chance = PREFERS_REDUCED_MOTION ? Math.min(rule.chance, 0.18) : rule.chance;
-      if (Math.random() < chance) showHeartCloudPrompt();
-      scheduleHeartCloudNudges();
-    }
-  }, delay);
 }
 
 // --- 14. 0-1 Goal Coach Popup Controls ---
@@ -2248,23 +2158,38 @@ function renderAppDock() {
     const item = document.createElement("div");
     item.className = `dock-app-item ${state.dockEditMode ? "edit-mode" : ""}`;
     
-    // Get app initials for visual text icon
-    const initials = escapeHtml(app.name.slice(0, 2));
+    // 优先使用内置品牌 SVG 图标；匹配不到时回退为首两字文字图标
+    const brand = resolveBrandIcon(app);
     // 仅允许安全的颜色字符串（hex / hsl / rgb），否则回退到主题色，避免 style 注入
     const safeColor = /^(#[0-9a-fA-F]{3,8}|hsl\([^"'<>]*\)|rgb\([^"'<>]*\))$/.test(app.color || "")
       ? app.color : "var(--accent)";
+    const iconHtml = brand
+      ? (brand.img
+          ? `<div class="dock-app-icon brand-icon has-img" style="background: ${brand.bg};"><img src="${brand.img}" alt="" loading="lazy"></div>`
+          : `<div class="dock-app-icon brand-icon" style="background: ${brand.bg};">${brand.svg}</div>`)
+      : `<div class="dock-app-icon" style="background: linear-gradient(135deg, ${safeColor}, rgba(0,0,0,0.6));">${escapeHtml(app.name.slice(0, 2))}</div>`;
 
     item.innerHTML = `
       <div class="dock-app-delete-btn">✕</div>
-      <div class="dock-app-icon" style="background: linear-gradient(135deg, ${safeColor}, rgba(0,0,0,0.6));">
-        ${initials}
-      </div>
+      ${iconHtml}
       <div class="dock-app-label">${escapeHtml(app.name)}</div>
       <div class="dock-app-nav-btns">
         <div class="dock-nav-btn" data-nav="-1">←</div>
         <div class="dock-nav-btn" data-nav="1">→</div>
       </div>
     `;
+
+    // 官方图标加载失败时，回退到内置 SVG 兜底图标
+    const brandImg = item.querySelector(".dock-app-icon.has-img img");
+    if (brandImg && brand && brand.svg) {
+      brandImg.addEventListener("error", () => {
+        const box = brandImg.parentElement;
+        if (box) {
+          box.classList.remove("has-img");
+          box.innerHTML = brand.svg;
+        }
+      });
+    }
 
     // 事件绑定（不再拼接 onclick 字符串）
     item.querySelector(".dock-app-delete-btn").addEventListener("click", (e) => {
@@ -2359,10 +2284,11 @@ function saveCustomApp() {
     return;
   }
   
-  if (!url.startsWith("http")) {
+  // 站内相对路径（如 lanshi/index.html）保持原样，其余补全 https:// 前缀
+  if (!url.startsWith("http") && !isInternalUrl(url)) {
     url = "https://" + url;
   }
-  
+
   const newId = `custom_${Date.now()}`;
   
   // Generate random pleasant theme color stop
@@ -2388,6 +2314,12 @@ function saveCustomApp() {
 
 // --- 17. Dual-Loop Blocker (Link Interception & Time Limits) ---
 function triggerShortcutRedirect(siteName, targetUrl) {
+  // 站内应用（烂开始等）是「盟友」而非推荐流，直接跳转、不弹注意力拦截窗
+  if (isInternalUrl(targetUrl)) {
+    openExternal(targetUrl);
+    return;
+  }
+
   state.blockerTargetSite = siteName;
   state.blockerTargetUrl = targetUrl;
   
@@ -2408,10 +2340,28 @@ function cancelRedirect() {
   if (modal) modal.classList.remove("active");
 }
 
+// 站内相对路径白名单：目前只有「烂开始」子应用。
+// 严格限定字符集（不含冒号/反斜杠/空白），杜绝 javascript: 等协议伪装，
+// 也避免把 www.xxx.com/x.html 这类无协议外链误判成站内页面
+function isInternalUrl(rawUrl) {
+  return /^(\.\/)?lanshi\/[\w./-]*\.html?([?#][\w./?=&%-]*)?$/i.test((rawUrl || "").trim());
+}
+
 // 可靠地在新标签打开外部网址：在用户手势内用 <a target="_blank"> 触发，
 // 比 window.open 更不易被弹窗拦截器拦截；只放行 http/https 协议。
 function openExternal(rawUrl) {
   let url = (rawUrl || "").trim();
+  // 站内页面（烂开始等）直接新标签打开，保留主应用状态
+  if (isInternalUrl(url)) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return true;
+  }
   if (!/^https?:\/\//i.test(url)) url = "https://" + url;
   try {
     const u = new URL(url);
@@ -2578,6 +2528,11 @@ function syncWarningMotivationalDOM() {
 // 未配置代理时，回退到用户本地填写的 API Key 直连。
 const AI_PROXY_URL = ""; // Worker 部署后填入，如 "https://tryrevive-ai.xxx.workers.dev"
 
+// 代理地址优先级：用户在「设置偏好」里填的 > 代码里写死的常量
+function getAIProxyUrl() {
+  return (state.userProfile.aiProxyUrl || AI_PROXY_URL || "").trim().replace(/\/+$/, "");
+}
+
 async function callClaude({ system, messages, model, maxTokens }) {
   const payload = {
     model: model || "claude-sonnet-5",
@@ -2586,8 +2541,9 @@ async function callClaude({ system, messages, model, maxTokens }) {
     messages: messages
   };
 
-  if (AI_PROXY_URL) {
-    const resp = await fetch(AI_PROXY_URL, {
+  const proxyUrl = getAIProxyUrl();
+  if (proxyUrl) {
+    const resp = await fetch(proxyUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload)
@@ -2626,7 +2582,6 @@ async function fetchAICoachFeedback(promptType, callback) {
   const userMessage = `
   用户 MBTI: ${state.userProfile.mbti}
   今日终极目标: ${state.userProfile.motivation}
-  眼前最新目标或想法: ${state.userProfile.currentGoal || "未记录"}
   当前步骤计划: 1. ${state.userProfile.firstStep || "未设定"} | 2. ${state.userProfile.step2 || "未设定"} | 3. ${state.userProfile.step3 || "未设定"}
   触发情境: ${promptType === "blocker" ? "用户在使用被设防的应用超时，需要警醒防线" : "用户刚完成一轮禅想冷静，准备重新上路自律"}
   `;
@@ -2646,15 +2601,14 @@ async function fetchAICoachFeedback(promptType, callback) {
 }
 
 // --- 17b. AI 对话（心语聊天：透明气泡，温和催促） ---
-const chatState = { history: [], busy: false };
+const chatState = { history: [], busy: false, pendingCloudQuestion: "" };
 
 function toggleAIChat(forceOpen) {
-  ensureFloatingHeartLayer();
   const panel = document.getElementById("ai-chat-panel");
   if (!panel) return;
   const open = forceOpen === true || !panel.classList.contains("open");
   panel.classList.toggle("open", open);
-  if (open) dismissHeartCloud();
+  if (open) hideCloudCheckin(); // 打开面板时收起云朵，避免重叠
   const list = document.getElementById("ai-chat-messages");
   if (open && list && !list.children.length) {
     appendChatBubble("assistant", "我在。想聊聊你现在正被什么占据，或者今天真正想完成的那件事吗？");
@@ -2684,31 +2638,144 @@ async function sendAIChat() {
   input.value = "";
 
   appendChatBubble("user", text);
-  chatState.history.push({ role: "user", content: text });
+  // 云朵问句只在界面上展示过，未进 history（API 要求首条消息是 user 角色），
+  // 这里把它并入用户消息，让 AI 知道自己刚才问了什么
+  let apiText = text;
+  if (chatState.pendingCloudQuestion) {
+    apiText = `（你刚才像云朵一样飘过来问我：「${chatState.pendingCloudQuestion}」）\n${text}`;
+    chatState.pendingCloudQuestion = "";
+  }
+  chatState.history.push({ role: "user", content: apiText });
 
   const thinking = appendChatBubble("assistant", "…");
   chatState.busy = true;
 
   const systemPrompt = `你是 tryrevive 的陪伴者——温和、清醒、简短。用户正在练习把注意力从推荐流夺回到自己的人生。
-用户画像：MBTI=${state.userProfile.mbti || "未知"}；今日目标=${state.userProfile.motivation || "未设定"}；眼前最新目标或想法=${state.userProfile.currentGoal || "未记录"}；计划步骤=1.${state.userProfile.firstStep || "未定"} 2.${state.userProfile.step2 || "未定"} 3.${state.userProfile.step3 || "未定"}。
+用户画像：MBTI=${state.userProfile.mbti || "未知"}；今日目标=${state.userProfile.motivation || "未设定"}；计划步骤=1.${state.userProfile.firstStep || "未定"} 2.${state.userProfile.step2 || "未定"} 3.${state.userProfile.step3 || "未定"}。
 原则：每次回复不超过 80 字；像朋友轻声对话，不说教、不羞辱、不喊口号；倾听并接住情绪，再轻轻把话题引回"当下能做的最小一步"；适时提出一个具体的小问题帮对方想清楚。`;
 
   try {
+    // 截取最近 20 条后，丢弃开头的 assistant 消息——API 要求首条必须是 user 角色
+    const recentMessages = chatState.history.slice(-20);
+    while (recentMessages.length && recentMessages[0].role !== "user") {
+      recentMessages.shift();
+    }
     const reply = await callClaude({
       system: systemPrompt,
-      messages: chatState.history.slice(-20),
+      messages: recentMessages,
       model: "claude-sonnet-5",
       maxTokens: 300
     });
     thinking.textContent = reply;
     chatState.history.push({ role: "assistant", content: reply });
   } catch (err) {
-    thinking.textContent = state.userProfile.apiKey || AI_PROXY_URL
-      ? "（连接失败了，稍后再试试）"
-      : "（还没接通 AI：请在「设置偏好」里填入 API Key，或等待代理配置完成）";
+    console.warn("AI chat failed:", err);
+    thinking.textContent = describeAIError(err);
   } finally {
     chatState.busy = false;
   }
+}
+
+// 把连接失败翻译成用户能看懂、能行动的提示
+function describeAIError(err) {
+  const proxyUrl = getAIProxyUrl();
+  const hasKey = !!state.userProfile.apiKey;
+  const msg = (err && err.message) || "";
+
+  if (!proxyUrl && !hasKey) {
+    return "（还没接通 AI：请在「设置偏好」里填入 AI 代理地址或 API Key）";
+  }
+  if (/\b(401|403)\b/.test(msg)) {
+    return "（AI 拒绝了请求：API Key 无效或代理未授权本站，请检查「设置偏好」）";
+  }
+  if (/\b429\b/.test(msg)) {
+    return "（AI 额度暂时受限，休息一下再来吧）";
+  }
+  if (/\b(500|502|503|529)\b/.test(msg)) {
+    return "（AI 服务器临时开小差了，稍等片刻再试）";
+  }
+  if (/failed to fetch|networkerror|load failed/i.test(msg) || err instanceof TypeError) {
+    return proxyUrl
+      ? "（连不上代理服务器：请确认 Worker 已部署、地址填写正确）"
+      : "（网络无法直达 api.anthropic.com——国内环境通常会这样。建议部署 Cloudflare Worker 代理，然后在「设置偏好」填入代理地址）";
+  }
+  return `（连接失败：${msg || "未知原因"}，稍后再试试）`;
+}
+
+// --- 17c. 云朵心语（☁️ 会定时飘出来，轻轻问一句你的状态） ---
+const CLOUD_QUESTIONS = [
+  "此刻的你，感觉怎么样？",
+  "现在心里最占地方的，是哪件事呀？",
+  "刚过去的十分钟，花在你想要的事情上了吗？",
+  "要不要现在就把今天的第一小步做掉？",
+  "眼睛累了吧？喝口水，伸个懒腰再继续 🌿",
+  "如果此刻只能做一件事，你会选哪件？",
+  "有被什么卡住吗？跟我说说也可以。",
+  "给现在的状态打个分吧，1 到 10 分？"
+];
+const CLOUD_FIRST_DELAY_MS = 10 * 1000;      // 进入首页 10 秒后第一次飘出
+const CLOUD_MIN_GAP_MS = 3 * 60 * 1000;      // 之后每 3~6 分钟随机飘一次
+const CLOUD_MAX_GAP_MS = 6 * 60 * 1000;
+const CLOUD_LINGER_MS = 30 * 1000;           // 无人理会 30 秒后自己飘走
+
+const cloudState = { showTimer: null, hideTimer: null, question: "" };
+
+function nextCloudGap() {
+  return CLOUD_MIN_GAP_MS + Math.random() * (CLOUD_MAX_GAP_MS - CLOUD_MIN_GAP_MS);
+}
+
+function scheduleCloudCheckin(delayMs) {
+  clearTimeout(cloudState.showTimer);
+  cloudState.showTimer = setTimeout(showCloudCheckin, delayMs);
+}
+
+function showCloudCheckin() {
+  if (state.activeView !== "home") return; // 回到首页时 switchView 会重新排程
+  const panel = document.getElementById("ai-chat-panel");
+  if (panel && panel.classList.contains("open")) {
+    scheduleCloudCheckin(60 * 1000); // 正在聊天就不打扰，一分钟后再看看
+    return;
+  }
+  const cloud = document.getElementById("cloud-checkin");
+  const textEl = document.getElementById("cloud-checkin-text");
+  if (!cloud || !textEl) return;
+
+  let q = cloudState.question;
+  while (CLOUD_QUESTIONS.length > 1 && q === cloudState.question) {
+    q = CLOUD_QUESTIONS[Math.floor(Math.random() * CLOUD_QUESTIONS.length)];
+  }
+  cloudState.question = q;
+  textEl.textContent = q;
+  cloud.classList.add("show");
+
+  clearTimeout(cloudState.hideTimer);
+  cloudState.hideTimer = setTimeout(() => {
+    hideCloudCheckin();
+    scheduleCloudCheckin(nextCloudGap());
+  }, CLOUD_LINGER_MS);
+}
+
+function hideCloudCheckin() {
+  clearTimeout(cloudState.hideTimer);
+  const cloud = document.getElementById("cloud-checkin");
+  if (cloud) cloud.classList.remove("show");
+}
+
+function dismissCloudCheckin(e) {
+  if (e) e.stopPropagation();
+  hideCloudCheckin();
+  scheduleCloudCheckin(nextCloudGap());
+}
+
+function openCloudChat() {
+  const q = cloudState.question;
+  hideCloudCheckin();
+  if (q) {
+    appendChatBubble("assistant", q);
+    chatState.pendingCloudQuestion = q;
+  }
+  toggleAIChat(true);
+  scheduleCloudCheckin(nextCloudGap());
 }
 
 function getLocalFallbackQuote(promptType) {
@@ -2857,3 +2924,4 @@ if (window.chrome && chrome.runtime && chrome.runtime.onMessage) {
     }
   });
 }
+

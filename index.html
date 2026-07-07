@@ -237,6 +237,11 @@
           <label class="input-label" for="input-api-key">Anthropic API Key（选填，开启 AI 禅修心语）</label>
           <input type="password" id="input-api-key" class="text-input" placeholder="输入 console.anthropic.com 密钥 (选填，仅本地保存)" autocomplete="off">
         </div>
+        <!-- AI Proxy URL (Cloudflare Worker) -->
+        <div class="form-group">
+          <label class="input-label" for="input-ai-proxy">AI 代理地址（推荐：部署 Cloudflare Worker 后填入，国内可直连）</label>
+          <input type="text" id="input-ai-proxy" class="text-input" placeholder="如 https://tryrevive-ai.xxx.workers.dev" autocomplete="off">
+        </div>
         <!-- Pet Style Option Selection -->
         <div class="form-group" style="margin-bottom: 0;">
           <label class="input-label">疗愈桌宠表现形态</label>
@@ -314,26 +319,17 @@
 
       </div>
 
+      <!-- ☁️ 云朵心语：定时飘出来，轻轻问一句状态 -->
+      <div id="cloud-checkin" class="cloud-checkin" onclick="openCloudChat()" role="button" aria-label="打开心语对话">
+        <button class="cloud-checkin-close" onclick="dismissCloudCheckin(event)" title="先不聊">✕</button>
+        <span class="cloud-checkin-emoji">☁️</span>
+        <span id="cloud-checkin-text" class="cloud-checkin-text">此刻的你，感觉怎么样？</span>
+      </div>
+
       <!-- AI 心语对话（浮动按钮 + 透明气泡面板） -->
       <button id="ai-chat-toggle" class="ai-chat-toggle" onclick="toggleAIChat()" title="和 AI 聊聊">
         <span class="ai-chat-orb"></span>
       </button>
-      <div id="heart-cloud-popup" class="heart-cloud-popup" aria-live="polite" aria-label="心语小云朵">
-        <button type="button" class="heart-cloud-close" onclick="dismissHeartCloud()" aria-label="收起心语小云朵">×</button>
-        <div class="heart-cloud-kicker">心语小云朵</div>
-        <div id="heart-cloud-question" class="heart-cloud-question">现在状态还好吗？</div>
-        <div class="heart-cloud-moods" aria-label="选择当前状态">
-          <button type="button" data-heart-mood="black" onclick="setHeartCloudMood('black')">有点乱</button>
-          <button type="button" data-heart-mood="gray" onclick="setHeartCloudMood('gray')">还可以</button>
-          <button type="button" data-heart-mood="white" onclick="setHeartCloudMood('white')">很清醒</button>
-        </div>
-        <input type="text" id="heart-cloud-input" class="heart-cloud-input" placeholder="写下现在的目标或想法..." autocomplete="off" onkeypress="if(event.key==='Enter'){submitHeartCloud()}">
-        <div id="heart-cloud-feedback" class="heart-cloud-feedback"></div>
-        <div class="heart-cloud-actions">
-          <button type="button" onclick="submitHeartCloud()" class="heart-cloud-primary">存下这一句</button>
-          <button type="button" onclick="openHeartCloudChat()" class="heart-cloud-secondary">继续聊聊</button>
-        </div>
-      </div>
       <div id="ai-chat-panel" class="ai-chat-panel">
         <div class="ai-chat-head">
           <span>心语 · 和自己对话</span>
