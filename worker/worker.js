@@ -9,6 +9,7 @@ const ALLOWED_ORIGINS = [
   "https://www.tryrevive.online",
   "http://tryrevive.online",
   "http://www.tryrevive.online",
+  "https://0711hackson.github.io",
   "https://sophia-yuanyuan.github.io",
   "http://localhost:8000",
   "http://127.0.0.1:8000",
