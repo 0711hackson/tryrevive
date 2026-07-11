@@ -266,6 +266,7 @@ const state = {
     customQuote: "", // 用户自定心语
     calmingColor: { h: 220, s: 65, l: 55 }, // HSL with custom lightness
     showPet: true, // 桌宠小人开启/隐藏开关
+    petVisibilityRestoredV3: true,
     currentGoal: "",
     firstStep: "",
     step1Minutes: 0,
@@ -436,6 +437,28 @@ function registerResize(key, handler) {
   window.addEventListener("resize", handler);
 }
 
+const FLOATING_HOME_UI_IDS = ["ai-chat-toggle", "ai-chat-panel", "cloud-checkin"];
+
+function mountFloatingHomeUi() {
+  FLOATING_HOME_UI_IDS.forEach(id => {
+    const element = document.getElementById(id);
+    if (element && element.parentElement !== document.body) document.body.appendChild(element);
+  });
+}
+
+function syncFloatingHomeUi(viewName) {
+  FLOATING_HOME_UI_IDS.forEach(id => {
+    const element = document.getElementById(id);
+    if (!element) return;
+    element.hidden = viewName !== "home";
+  });
+
+  if (viewName !== "home") {
+    const panel = document.getElementById("ai-chat-panel");
+    if (panel) panel.classList.remove("open");
+  }
+}
+
 // --- 4. 页面过渡控制 (SPA Router) ---
 function switchView(viewName) {
   if (state.canvasAnimIds.avatar) cancelAnimationFrame(state.canvasAnimIds.avatar);
@@ -460,6 +483,7 @@ function switchView(viewName) {
     targetScreen.classList.add("active");
   }
   state.activeView = viewName;
+  syncFloatingHomeUi(viewName);
 
   // 桌宠挂到 body 后不再依赖页面容器显隐，因此在切页时明确控制它。
   const globalPetContainer = document.getElementById("desk-pet-container");
@@ -615,7 +639,13 @@ function loadUserProfile(username) {
     if (loaded.calmingColor.l === undefined) {
       loaded.calmingColor.l = 55;
     }
-    if (loaded.showPet === undefined) {
+    // 旧浏览器存档可能在早期测评里把桌宠永久关闭，但后续设置页已经
+    // 不再提供对应开关。执行一次迁移，让不同浏览器的旧存档统一恢复桌宠。
+    if (!loaded.petVisibilityRestoredV3) {
+      loaded.showPet = true;
+      loaded.petVisibilityRestoredV3 = true;
+      localStorage.setItem(`tryrevive_save_${username}`, JSON.stringify(loaded));
+    } else if (loaded.showPet === undefined) {
       loaded.showPet = true;
     }
     if (loaded.petStyle === undefined) {
@@ -663,6 +693,7 @@ async function handleRegister() {
     aiProxyUrl: "",
     calmingColor: { h: 220, s: 65, l: 55 },
     showPet: true,
+    petVisibilityRestoredV3: true,
     petStyle: "B",
     currentGoal: "",
     firstStep: "",
@@ -1100,6 +1131,8 @@ function completeOnboarding() {
   // Save pet style option
   const selectedStyleEl = document.querySelector('input[name="pet-style-option"]:checked');
   state.userProfile.petStyle = selectedStyleEl ? selectedStyleEl.value : "B";
+  state.userProfile.showPet = true;
+  state.userProfile.petVisibilityRestoredV3 = true;
 
   // Write and auto-generate smart MBTI warning templates
   generateSmartMBTIQuote();
@@ -1175,19 +1208,23 @@ function initAvatarCanvas(canvasId, stateAnimKey) {
     let headAngle = 0;
 
     let headColor = "#ffffff";
-    let bodyStrokeColor = "rgba(244, 214, 214, 0.95)";
+    let headOutlineColor = "rgba(83, 72, 126, 0.28)";
+    let bodyStrokeColor = "rgba(236, 162, 176, 0.98)";
 
     // Choose colors based on state
     if (stateName === "black") {
       headColor = "#22242b"; // dirty dark gray/black
+      headOutlineColor = "rgba(255, 255, 255, 0.14)";
       bodyStrokeColor = "rgba(110, 95, 95, 0.95)"; // dirty dark pinkish-gray
     } else if (stateName === "white") {
       headColor = "#ffffff"; // pure clean white
-      bodyStrokeColor = "rgba(255, 215, 215, 0.98)"; // clean pink
+      headOutlineColor = "rgba(111, 92, 240, 0.34)";
+      bodyStrokeColor = "rgba(248, 174, 188, 0.98)"; // clean pink
     } else {
       // gray state
-      headColor = "#f3f4f6"; // warm off-white
-      bodyStrokeColor = "rgba(244, 214, 214, 0.95)"; // soft pastel pink
+      headColor = "#fffaf7"; // warm off-white
+      headOutlineColor = "rgba(91, 78, 145, 0.4)";
+      bodyStrokeColor = "rgba(232, 151, 169, 0.98)"; // visible pastel pink
     }
 
     // Time-harmonic wiggling jitter function to simulate organic hand-drawn sketch lines (boiling line effect)
@@ -1309,6 +1346,9 @@ function initAvatarCanvas(canvasId, stateAnimKey) {
       ctx.beginPath();
       ctx.arc(cx, cy, r * 0.82, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = headOutlineColor;
+      ctx.lineWidth = 2.2;
+      ctx.stroke();
 
       // Scatter loop for chalk particles
       const dotCount = 72;
@@ -3328,6 +3368,7 @@ function triggerBlockerWarning(overtimeSeconds) {
 
 // --- 18. Initial Boot Up & DOM Events binding ---
 document.addEventListener("DOMContentLoaded", () => {
+  mountFloatingHomeUi();
   initDraggableDeskPet();
 
   ["intercept-step1-minutes", "intercept-step2-minutes", "intercept-step3-minutes"].forEach(id => {
