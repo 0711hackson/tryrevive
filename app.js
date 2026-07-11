@@ -2460,6 +2460,20 @@ function openExternal(rawUrl) {
   return true;
 }
 
+const RETURN_GRACE_SECONDS = 10;
+
+function buildReturnUrl() {
+  return window.location.href;
+}
+
+function publishExternalGuardSession(session) {
+  window.postMessage({
+    source: "tryrevive",
+    type: "TRYREVIVE_GUARD_SESSION",
+    payload: session
+  }, window.location.origin);
+}
+
 function confirmRedirect() {
   const selectEl = document.getElementById("intercept-duration");
   const searchQueryInput = document.getElementById("intercept-search-query");
@@ -2505,9 +2519,31 @@ function confirmRedirect() {
 
   cancelRedirect();
 
+  const guardStartedAt = Date.now();
+  if (firstStepMinutes > 0) {
+    const endAt = guardStartedAt + firstStepMinutes * 60 * 1000;
+    publishExternalGuardSession({
+      id: `tryrevive-${guardStartedAt}`,
+      siteName: state.blockerTargetSite,
+      targetUrl: destinationUrl,
+      returnUrl: buildReturnUrl(),
+      taskText: state.userProfile.firstStep || searchQuery || "回到 Tryrevive 继续计划",
+      searchQuery,
+      minutes: firstStepMinutes,
+      startedAt: guardStartedAt,
+      endAt,
+      reminderAt: Math.max(guardStartedAt, endAt - 60 * 1000),
+      returnAt: endAt + RETURN_GRACE_SECONDS * 1000,
+      reminderSeconds: 60,
+      graceSeconds: RETURN_GRACE_SECONDS
+    });
+  } else {
+    publishExternalGuardSession(null);
+  }
+
   // 普通浏览器在当前标签打开，保留浏览器原生返回路径；安装扩展时，
   // 外部页面还会显示“返回 Tryrevive”悬浮按钮。
-  openExternal(destinationUrl);
+  window.setTimeout(() => openExternal(destinationUrl), firstStepMinutes > 0 ? 120 : 0);
 
   setAvatarState("black");
 
@@ -3279,4 +3315,3 @@ if (window.chrome && chrome.runtime && chrome.runtime.onMessage) {
     }
   });
 }
-

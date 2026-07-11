@@ -1,67 +1,316 @@
-// Tryrevive 内容桥接脚本
-// 背景 worker 通过 chrome.tabs.sendMessage 发来的消息只有 content script 能收到，
-// 这里把"超时"指令转成页面可监听的 CustomEvent，打通 后台 → 页面 的核心闭环。
+// Tryrevive content bridge.
+// 1. On Tryrevive pages, receive the page's guard-session message and store it
+//    in extension storage.
+// 2. On guarded external sites, show the return/countdown panel and redirect
+//    back when the planned browsing window ends.
 
-const TRYREVIVE_HOSTS = new Set(["tryrevive.online", "www.tryrevive.online", "localhost", "127.0.0.1"]);
+const TRYREVIVE_HOSTS = new Set([
+  "tryrevive.online",
+  "www.tryrevive.online",
+  "0711hackson.github.io",
+  "sophia-yuanyuan.github.io",
+  "localhost",
+  "127.0.0.1"
+]);
+
 const GUARDED_HOSTS = [
-  "xiaohongshu.com", "bilibili.com", "weibo.com", "douyin.com",
-  "zhihu.com", "taobao.com", "pinduoduo.com"
+  "xiaohongshu.com",
+  "bilibili.com",
+  "weibo.com",
+  "douyin.com",
+  "zhihu.com",
+  "taobao.com",
+  "pinduoduo.com",
+  "music.163.com"
 ];
 
+const GUARD_STORAGE_KEY = "tryreviveGuardSession";
+const RETURN_URL_KEY = "tryreviveReturnUrl";
+const PANEL_ID = "tryrevive-guard-panel";
+const LEGACY_RETURN_BUTTON_ID = "tryrevive-return-button";
+
+function normalizedHost() {
+  return location.hostname.replace(/^www\./, "");
+}
+
 function isTryrevivePage() {
-  return TRYREVIVE_HOSTS.has(location.hostname) &&
-    (location.hostname.includes("tryrevive") || location.port === "8000");
+  if (!TRYREVIVE_HOSTS.has(location.hostname)) return false;
+  if (location.hostname.endsWith("github.io")) {
+    return location.pathname === "/tryrevive" || location.pathname.startsWith("/tryrevive/");
+  }
+  return location.hostname.includes("tryrevive") || location.port === "8000" || location.port === "8080";
+}
+
+function isGuardedPage() {
+  const host = normalizedHost();
+  return GUARDED_HOSTS.some(domain => host === domain || host.endsWith("." + domain));
+}
+
+function isValidUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function rememberTryreviveUrl() {
   if (!isTryrevivePage()) return;
-  chrome.storage.local.set({ tryreviveReturnUrl: location.href });
+  chrome.storage.local.set({ [RETURN_URL_KEY]: location.href });
 }
 
-function injectReturnButton() {
-  const host = location.hostname.replace(/^www\./, "");
-  if (!GUARDED_HOSTS.some(domain => host === domain || host.endsWith("." + domain))) return;
-  if (document.getElementById("tryrevive-return-button")) return;
+function notifyBackground(action, session = null) {
+  chrome.runtime.sendMessage({ action, session }, () => {
+    // Ignore "receiving end does not exist" in development reload windows.
+    void chrome.runtime.lastError;
+  });
+}
 
-  chrome.storage.local.get(["tryreviveReturnUrl"], result => {
-    const returnUrl = result.tryreviveReturnUrl || "https://tryrevive.online/";
-    const button = document.createElement("button");
-    button.id = "tryrevive-return-button";
-    button.type = "button";
-    button.setAttribute("aria-label", "返回 Tryrevive，继续原来的计划");
-    button.innerHTML = '<span aria-hidden="true">↩</span><span>返回 Tryrevive</span>';
-    button.addEventListener("click", () => {
-      location.href = returnUrl;
-    });
+function normalizeGuardSession(rawSession) {
+  if (!rawSession || typeof rawSession !== "object") return null;
+  const startedAt = Number(rawSession.startedAt);
+  const endAt = Number(rawSession.endAt);
+  const returnAt = Number(rawSession.returnAt);
+  const returnUrl = String(rawSession.returnUrl || "");
+  if (!Number.isFinite(startedAt) || !Number.isFinite(endAt) || !Number.isFinite(returnAt)) return null;
+  if (endAt <= startedAt || returnAt < endAt || !isValidUrl(returnUrl)) return null;
+  return {
+    id: String(rawSession.id || `tryrevive-${startedAt}`),
+    siteName: String(rawSession.siteName || "外部平台").slice(0, 40),
+    targetUrl: String(rawSession.targetUrl || ""),
+    returnUrl,
+    taskText: String(rawSession.taskText || "回到 Tryrevive 继续计划").slice(0, 80),
+    searchQuery: String(rawSession.searchQuery || "").slice(0, 80),
+    minutes: Math.max(1, Math.min(240, Math.round(Number(rawSession.minutes) || 1))),
+    startedAt,
+    endAt,
+    reminderAt: Number(rawSession.reminderAt) || Math.max(startedAt, endAt - 60 * 1000),
+    returnAt,
+    reminderSeconds: Math.max(10, Math.min(120, Number(rawSession.reminderSeconds) || 60)),
+    graceSeconds: Math.max(3, Math.min(30, Number(rawSession.graceSeconds) || 10))
+  };
+}
 
-    const style = document.createElement("style");
-    style.textContent = `
-      #tryrevive-return-button {
-        position: fixed; right: 20px; bottom: 22px; z-index: 2147483647;
-        display: flex; align-items: center; gap: 8px; min-height: 44px;
-        padding: 0 16px; border: 1px solid rgba(255,255,255,.16);
-        border-radius: 999px; background: #17191f; color: #fff;
-        box-shadow: 0 10px 30px rgba(0,0,0,.32); cursor: pointer;
-        font: 600 14px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        transition: transform 180ms cubic-bezier(.16,1,.3,1), background 180ms ease;
+function bindTryreviveBridge() {
+  if (!isTryrevivePage()) return;
+  window.addEventListener("message", event => {
+    if (event.source !== window || event.origin !== location.origin) return;
+    const data = event.data || {};
+    if (data.source !== "tryrevive" || data.type !== "TRYREVIVE_GUARD_SESSION") return;
+
+    const session = normalizeGuardSession(data.payload);
+    if (!session) {
+      chrome.storage.local.remove(GUARD_STORAGE_KEY, () => notifyBackground("tryreviveGuardCleared"));
+      return;
+    }
+
+    chrome.storage.local.set({
+      [GUARD_STORAGE_KEY]: session,
+      [RETURN_URL_KEY]: session.returnUrl
+    }, () => notifyBackground("tryreviveGuardSessionUpdated", session));
+  });
+}
+
+function formatDuration(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const restMinutes = minutes % 60;
+    return `${hours}:${String(restMinutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function createPanel() {
+  const oldButton = document.getElementById(LEGACY_RETURN_BUTTON_ID);
+  if (oldButton) oldButton.remove();
+
+  let panel = document.getElementById(PANEL_ID);
+  if (panel) return panel;
+
+  panel = document.createElement("section");
+  panel.id = PANEL_ID;
+  panel.setAttribute("aria-live", "polite");
+  panel.innerHTML = `
+    <style>
+      #${PANEL_ID} {
+        position: fixed;
+        right: 20px;
+        bottom: 22px;
+        z-index: 2147483647;
+        width: min(320px, calc(100vw - 28px));
+        padding: 14px;
+        border: 1px solid rgba(255, 255, 255, .14);
+        border-radius: 18px;
+        background: #15171d;
+        color: #fff;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, .36);
+        font: 500 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
       }
-      #tryrevive-return-button:hover { background: #242730; transform: translateY(-2px); }
-      #tryrevive-return-button:focus-visible { outline: 3px solid rgba(255,138,101,.48); outline-offset: 3px; }
-      #tryrevive-return-button > span:first-child { color: #ff9d80; font-size: 18px; }
+      #${PANEL_ID}.is-warning {
+        border-color: rgba(255, 157, 128, .54);
+        box-shadow: 0 18px 52px rgba(255, 97, 97, .18), 0 18px 50px rgba(0, 0, 0, .36);
+      }
+      #${PANEL_ID}.is-returning {
+        border-color: rgba(255, 92, 92, .65);
+      }
+      #${PANEL_ID} .tryrevive-kicker {
+        color: rgba(255, 255, 255, .58);
+        font-size: 12px;
+        margin-bottom: 4px;
+      }
+      #${PANEL_ID} .tryrevive-title {
+        color: rgba(255, 255, 255, .94);
+        font-size: 15px;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+      #${PANEL_ID} .tryrevive-task {
+        color: rgba(255, 255, 255, .72);
+        font-size: 13px;
+        margin-bottom: 12px;
+        word-break: break-word;
+      }
+      #${PANEL_ID} .tryrevive-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      #${PANEL_ID} .tryrevive-time {
+        color: #ff9d80;
+        font-size: 24px;
+        font-weight: 750;
+        letter-spacing: 0;
+      }
+      #${PANEL_ID} .tryrevive-return {
+        min-height: 38px;
+        padding: 0 13px;
+        border: 1px solid rgba(255, 255, 255, .16);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, .08);
+        color: #fff;
+        cursor: pointer;
+        font: 700 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        transition: background 180ms ease, transform 180ms cubic-bezier(.16, 1, .3, 1);
+      }
+      #${PANEL_ID} .tryrevive-return:hover {
+        background: rgba(255, 255, 255, .15);
+        transform: translateY(-1px);
+      }
+      #${PANEL_ID} .tryrevive-return:focus-visible {
+        outline: 3px solid rgba(255, 138, 101, .45);
+        outline-offset: 3px;
+      }
       @media (max-width: 520px) {
-        #tryrevive-return-button { right: 14px; bottom: 16px; }
+        #${PANEL_ID} {
+          right: 14px;
+          bottom: 16px;
+        }
       }
       @media (prefers-reduced-motion: reduce) {
-        #tryrevive-return-button { transition: none; }
+        #${PANEL_ID} .tryrevive-return {
+          transition: none;
+        }
       }
-    `;
-    document.documentElement.appendChild(style);
-    document.body.appendChild(button);
+    </style>
+    <div class="tryrevive-kicker">Tryrevive 注意力守护</div>
+    <div class="tryrevive-title"></div>
+    <div class="tryrevive-task"></div>
+    <div class="tryrevive-row">
+      <div class="tryrevive-time"></div>
+      <button type="button" class="tryrevive-return">现在返回</button>
+    </div>
+  `;
+  panel.querySelector(".tryrevive-return").addEventListener("click", () => {
+    chrome.storage.local.remove(GUARD_STORAGE_KEY, () => {
+      const returnUrl = panel.dataset.returnUrl || "https://tryrevive.online/";
+      location.href = returnUrl;
+    });
+  });
+  document.documentElement.appendChild(panel);
+  return panel;
+}
+
+function redirectToReturn(session) {
+  chrome.storage.local.remove(GUARD_STORAGE_KEY, () => {
+    location.href = session.returnUrl;
+  });
+}
+
+function renderSession(panel, session) {
+  const now = Date.now();
+  const remainingMs = session.endAt - now;
+  const returnMs = session.returnAt - now;
+  const titleEl = panel.querySelector(".tryrevive-title");
+  const taskEl = panel.querySelector(".tryrevive-task");
+  const timeEl = panel.querySelector(".tryrevive-time");
+
+  panel.dataset.returnUrl = session.returnUrl;
+  panel.classList.toggle("is-warning", remainingMs <= session.reminderSeconds * 1000 && remainingMs > 0);
+  panel.classList.toggle("is-returning", remainingMs <= 0);
+
+  if (returnMs <= 0) {
+    redirectToReturn(session);
+    return;
+  }
+
+  if (remainingMs <= 0) {
+    titleEl.textContent = "时间到了，正在回到 Tryrevive";
+    taskEl.textContent = `给你 ${session.graceSeconds} 秒收尾，随后自动返回。`;
+    timeEl.textContent = `${Math.ceil(returnMs / 1000)} 秒`;
+    return;
+  }
+
+  if (remainingMs <= session.reminderSeconds * 1000) {
+    titleEl.textContent = "最后 1 分钟，准备收尾";
+  } else {
+    titleEl.textContent = `${session.siteName} 浏览计时中`;
+  }
+  taskEl.textContent = session.taskText;
+  timeEl.textContent = formatDuration(remainingMs);
+}
+
+function injectReturnOnlyPanel(returnUrl) {
+  const panel = createPanel();
+  panel.dataset.returnUrl = returnUrl;
+  panel.classList.remove("is-warning", "is-returning");
+  panel.querySelector(".tryrevive-title").textContent = "可以回到 Tryrevive";
+  panel.querySelector(".tryrevive-task").textContent = "继续原来的计划，别被推荐流带走太远。";
+  panel.querySelector(".tryrevive-time").textContent = "↩";
+}
+
+function startGuardPanel(session) {
+  const panel = createPanel();
+  const tick = () => renderSession(panel, session);
+  tick();
+  const intervalId = window.setInterval(tick, 1000);
+  document.addEventListener("visibilitychange", tick);
+  window.addEventListener("pagehide", () => window.clearInterval(intervalId), { once: true });
+}
+
+function hydrateGuardedPage() {
+  if (!isGuardedPage()) return;
+  chrome.storage.local.get([RETURN_URL_KEY, GUARD_STORAGE_KEY], result => {
+    const session = normalizeGuardSession(result[GUARD_STORAGE_KEY]);
+    if (session && Date.now() < session.returnAt) {
+      startGuardPanel(session);
+      return;
+    }
+    if (session && Date.now() >= session.returnAt) {
+      redirectToReturn(session);
+      return;
+    }
+    injectReturnOnlyPanel(result[RETURN_URL_KEY] || "https://tryrevive.online/");
   });
 }
 
 rememberTryreviveUrl();
-injectReturnButton();
+bindTryreviveBridge();
+hydrateGuardedPage();
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request && request.action === "triggerOvertime") {
