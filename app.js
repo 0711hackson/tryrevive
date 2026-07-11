@@ -275,6 +275,8 @@ const state = {
     step3Minutes: 0,
     planTimeSource: "none",
     planTimeDefaultsRemovedV1: true,
+    planCurrentStep: 1,
+    planReturnHandledId: "",
     quizAnswers: [],
 
     // User Custom App Dock config
@@ -605,6 +607,8 @@ function loadUserProfile(username) {
     if (!Number.isFinite(Number(loaded.step1Minutes))) loaded.step1Minutes = 0;
     if (!Number.isFinite(Number(loaded.step2Minutes))) loaded.step2Minutes = 0;
     if (!Number.isFinite(Number(loaded.step3Minutes))) loaded.step3Minutes = 0;
+    loaded.planCurrentStep = normalizePlanStepIndex(loaded.planCurrentStep);
+    if (typeof loaded.planReturnHandledId !== "string") loaded.planReturnHandledId = "";
     if (loaded.calmingColor === undefined) {
       loaded.calmingColor = { h: 220, s: 65, l: 55 };
     }
@@ -669,6 +673,8 @@ async function handleRegister() {
     step3Minutes: 0,
     planTimeSource: "none",
     planTimeDefaultsRemovedV1: true,
+    planCurrentStep: 1,
+    planReturnHandledId: "",
     quizAnswers: [],
 
     appDock: defaultAppDock(),
@@ -2119,6 +2125,7 @@ function applyGoalSuggestion(text) {
   if (goalInput) {
     goalInput.value = text;
     state.userProfile.firstStep = text;
+    resetPlanProgress();
     saveProfile();
   }
 }
@@ -2357,6 +2364,69 @@ function normalizeEstimatedMinutes(value, fallback = 0) {
   return Number.isFinite(parsed) ? Math.min(240, Math.max(0, parsed)) : fallback;
 }
 
+function normalizePlanStepIndex(value) {
+  const parsed = Math.round(Number(value));
+  return Number.isFinite(parsed) ? Math.min(4, Math.max(1, parsed)) : 1;
+}
+
+function getCurrentPlanStepIndex() {
+  state.userProfile.planCurrentStep = normalizePlanStepIndex(state.userProfile.planCurrentStep);
+  return state.userProfile.planCurrentStep;
+}
+
+function getPlanStepData(stepIndex) {
+  const index = normalizePlanStepIndex(stepIndex);
+  if (index === 1) {
+    return {
+      index,
+      label: "第一步",
+      actionLabel: "直接开始第一步",
+      doneLabel: "完成第一步",
+      text: state.userProfile.firstStep || "",
+      minutes: normalizeEstimatedMinutes(state.userProfile.step1Minutes, 0)
+    };
+  }
+  if (index === 2) {
+    return {
+      index,
+      label: "第二步",
+      actionLabel: "继续第二步",
+      doneLabel: "完成第二步",
+      text: state.userProfile.step2 || "",
+      minutes: normalizeEstimatedMinutes(state.userProfile.step2Minutes, 0)
+    };
+  }
+  if (index === 3) {
+    return {
+      index,
+      label: "第三步",
+      actionLabel: "继续第三步",
+      doneLabel: "完成第三步",
+      text: state.userProfile.step3 || "",
+      minutes: normalizeEstimatedMinutes(state.userProfile.step3Minutes, 0)
+    };
+  }
+  return {
+    index: 4,
+    label: "已完成",
+    actionLabel: "完成",
+    doneLabel: "完成",
+    text: "",
+    minutes: 0
+  };
+}
+
+function updateInterceptActionButton() {
+  const button = document.getElementById("intercept-confirm-btn");
+  if (!button) return;
+  button.textContent = getPlanStepData(getCurrentPlanStepIndex()).actionLabel;
+}
+
+function resetPlanProgress() {
+  state.userProfile.planCurrentStep = 1;
+  state.userProfile.planReturnHandledId = "";
+}
+
 function getPlanTotalMinutes() {
   return normalizeEstimatedMinutes(state.userProfile.step1Minutes, 0)
     + normalizeEstimatedMinutes(state.userProfile.step2Minutes, 0)
@@ -2394,11 +2464,12 @@ function triggerShortcutRedirect(siteName, targetUrl, searchQuery = "") {
   const searchSite = document.getElementById("intercept-search-site");
   const searchQueryInput = document.getElementById("intercept-search-query");
   const supportsDirectSearch = !!PLATFORM_DIRECT_SEARCH[siteName];
+  const activeStep = getPlanStepData(getCurrentPlanStepIndex());
   if (searchGroup) searchGroup.hidden = !supportsDirectSearch;
   if (searchSite) searchSite.textContent = siteName;
   if (searchQueryInput) {
     searchQueryInput.value = supportsDirectSearch
-      ? (searchQuery || state.userProfile.firstStep || "")
+      ? (searchQuery || activeStep.text || state.userProfile.firstStep || "")
       : "";
   }
 
@@ -2416,6 +2487,7 @@ function triggerShortcutRedirect(siteName, targetUrl, searchQuery = "") {
   if (step2MinutesInput) step2MinutesInput.value = normalizeEstimatedMinutes(state.userProfile.step2Minutes, 0);
   if (step3MinutesInput) step3MinutesInput.value = normalizeEstimatedMinutes(state.userProfile.step3Minutes, 0);
   if (durationInput) durationInput.value = getPlanTotalMinutes();
+  updateInterceptActionButton();
 
   if (modal) modal.classList.add("active");
 }
@@ -2463,18 +2535,29 @@ function openExternal(rawUrl) {
 const RETURN_GRACE_SECONDS = 10;
 const CANONICAL_TRYREVIVE_URL = "https://0711hackson.github.io/tryrevive/";
 
-function buildReturnUrl() {
+function buildReturnUrl(completedStepIndex, returnId) {
   try {
     const url = new URL(window.location.href);
     if (url.hostname === "tryrevive.online" || url.hostname === "www.tryrevive.online") {
-      return CANONICAL_TRYREVIVE_URL;
+      const canonical = new URL(CANONICAL_TRYREVIVE_URL);
+      if (completedStepIndex) canonical.searchParams.set("tryrevive_done_step", String(completedStepIndex));
+      if (returnId) canonical.searchParams.set("tryrevive_return_id", returnId);
+      return canonical.href;
     }
     if (url.hostname === "0711hackson.github.io" && !url.pathname.startsWith("/tryrevive")) {
-      return CANONICAL_TRYREVIVE_URL;
+      const canonical = new URL(CANONICAL_TRYREVIVE_URL);
+      if (completedStepIndex) canonical.searchParams.set("tryrevive_done_step", String(completedStepIndex));
+      if (returnId) canonical.searchParams.set("tryrevive_return_id", returnId);
+      return canonical.href;
     }
+    url.searchParams.set("tryrevive_done_step", String(completedStepIndex || getCurrentPlanStepIndex()));
+    url.searchParams.set("tryrevive_return_id", returnId || `return-${Date.now()}`);
     return url.href;
   } catch (error) {
-    return CANONICAL_TRYREVIVE_URL;
+    const canonical = new URL(CANONICAL_TRYREVIVE_URL);
+    if (completedStepIndex) canonical.searchParams.set("tryrevive_done_step", String(completedStepIndex));
+    if (returnId) canonical.searchParams.set("tryrevive_return_id", returnId);
+    return canonical.href;
   }
 }
 
@@ -2484,6 +2567,35 @@ function publishExternalGuardSession(session) {
     type: "TRYREVIVE_GUARD_SESSION",
     payload: session
   }, window.location.origin);
+}
+
+function applyReturnedPlanProgress() {
+  let url;
+  try {
+    url = new URL(window.location.href);
+  } catch (error) {
+    return;
+  }
+
+  const doneStep = normalizePlanStepIndex(url.searchParams.get("tryrevive_done_step"));
+  const returnId = url.searchParams.get("tryrevive_return_id") || "";
+  if (!returnId || doneStep > 3) return;
+
+  url.searchParams.delete("tryrevive_done_step");
+  url.searchParams.delete("tryrevive_return_id");
+  window.history.replaceState({}, document.title, url.toString());
+
+  if (state.userProfile.planReturnHandledId === returnId) return;
+
+  state.userProfile.planReturnHandledId = returnId;
+  state.userProfile.planCurrentStep = Math.max(getCurrentPlanStepIndex(), Math.min(4, doneStep + 1));
+  state.blockerTimerActive = false;
+  if (state.blockerInterval) clearInterval(state.blockerInterval);
+  stopHeartbeatLoop();
+  document.title = "Tryrevive";
+  saveProfile();
+  syncWarningMotivationalDOM();
+  updateInterceptActionButton();
 }
 
 function confirmRedirect() {
@@ -2512,36 +2624,49 @@ function confirmRedirect() {
   state.userProfile.step3Minutes = normalizeEstimatedMinutes(step3MinutesInput ? step3MinutesInput.value : 0, 0);
   state.userProfile.planTimeSource = "manual";
 
+  const activeStep = getPlanStepData(getCurrentPlanStepIndex());
+  if (activeStep.index >= 4) {
+    state.userProfile.planCurrentStep = 4;
+    saveProfile();
+    publishExternalGuardSession(null);
+    cancelRedirect();
+    setAvatarState("white");
+    syncWarningMotivationalDOM();
+    updateInterceptActionButton();
+    return;
+  }
+
   const searchBuilder = PLATFORM_DIRECT_SEARCH[state.blockerTargetSite];
-  // “直接开始第一步”会把第一步任务作为平台搜索词；若第一步为空，
-  // 再回退到用户手动填写的关键词、首页搜索词或旧版第二步输入。
-  const firstStepQuery = step1Input ? step1Input.value.trim() : "";
+  // 当前步骤会作为平台搜索词；若当前步骤为空，再回退到手动关键词与旧输入。
+  const activeStepQuery = activeStep.text.trim();
   const explicitQuery = searchQueryInput ? searchQueryInput.value.trim() : "";
   const fallbackQuery = step2Input ? step2Input.value.trim() : "";
-  const searchQuery = firstStepQuery || explicitQuery || state.blockerSearchQuery || fallbackQuery;
+  const searchQuery = activeStepQuery || explicitQuery || state.blockerSearchQuery || fallbackQuery;
   const destinationUrl = searchBuilder && searchQuery
     ? searchBuilder(searchQuery)
     : state.blockerTargetUrl;
 
   saveProfile();
 
-  state.blockerTimeLimitSec = firstStepMinutes * 60;
+  state.blockerTimeLimitSec = activeStep.minutes * 60;
   state.blockerStartTime = Date.now();
-  state.blockerTimerActive = firstStepMinutes > 0;
+  state.blockerTimerActive = activeStep.minutes > 0;
 
   cancelRedirect();
 
   const guardStartedAt = Date.now();
-  if (firstStepMinutes > 0) {
-    const endAt = guardStartedAt + firstStepMinutes * 60 * 1000;
+  const returnId = `tryrevive-${guardStartedAt}-${activeStep.index}`;
+  if (activeStep.minutes > 0) {
+    const endAt = guardStartedAt + activeStep.minutes * 60 * 1000;
     publishExternalGuardSession({
-      id: `tryrevive-${guardStartedAt}`,
+      id: returnId,
       siteName: state.blockerTargetSite,
       targetUrl: destinationUrl,
-      returnUrl: buildReturnUrl(),
-      taskText: state.userProfile.firstStep || searchQuery || "回到 Tryrevive 继续计划",
+      returnUrl: buildReturnUrl(activeStep.index, returnId),
+      taskText: activeStep.text || searchQuery || "回到 Tryrevive 继续计划",
       searchQuery,
-      minutes: firstStepMinutes,
+      stepIndex: activeStep.index,
+      minutes: activeStep.minutes,
       startedAt: guardStartedAt,
       endAt,
       reminderAt: Math.max(guardStartedAt, endAt - 60 * 1000),
@@ -2555,7 +2680,7 @@ function confirmRedirect() {
 
   // 普通浏览器在当前标签打开，保留浏览器原生返回路径；安装扩展时，
   // 外部页面还会显示“返回 Tryrevive”悬浮按钮。
-  window.setTimeout(() => openExternal(destinationUrl), firstStepMinutes > 0 ? 120 : 0);
+  window.setTimeout(() => openExternal(destinationUrl), activeStep.minutes > 0 ? 120 : 0);
 
   setAvatarState("black");
 
@@ -2985,6 +3110,7 @@ function applyGeneratedPlan(plan) {
   state.userProfile.step3 = plan.steps[2].text;
   state.userProfile.step3Minutes = plan.steps[2].minutes;
   state.userProfile.planTimeSource = "ai";
+  resetPlanProgress();
   if (plan.goal) {
     state.userProfile.currentGoal = plan.goal;
     state.userProfile.motivation = plan.goal;
@@ -3213,6 +3339,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (goalStepInput) {
     goalStepInput.addEventListener("change", () => {
       state.userProfile.firstStep = goalStepInput.value.trim();
+      resetPlanProgress();
       saveProfile();
     });
   }
@@ -3277,6 +3404,7 @@ document.addEventListener("DOMContentLoaded", () => {
       state.userProfile = loaded;
       applyThemeColor(state.userProfile.calmingColor.h, state.userProfile.calmingColor.s, state.userProfile.calmingColor.l);
       switchView("home");
+      applyReturnedPlanProgress();
     } else {
       switchView("narrative");
       runNarrativeIntro();
