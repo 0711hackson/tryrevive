@@ -1,8 +1,7 @@
 // Tryrevive content bridge.
-// 1. On Tryrevive pages, receive the page's guard-session message and store it
-//    in extension storage.
-// 2. On guarded external sites, show the return/countdown panel and redirect
-//    back when the planned browsing window ends.
+// - On Tryrevive pages, receive the page's guard-session message and store it.
+// - On guarded external sites, show the countdown panel, allow one-click return,
+//   and offer a 3-minute extension during the final reminder window.
 
 const TRYREVIVE_HOSTS = new Set([
   "tryrevive.online",
@@ -29,6 +28,7 @@ const RETURN_URL_KEY = "tryreviveReturnUrl";
 const PANEL_ID = "tryrevive-guard-panel";
 const LEGACY_RETURN_BUTTON_ID = "tryrevive-return-button";
 const CANONICAL_TRYREVIVE_URL = "https://0711hackson.github.io/tryrevive/";
+const EXTEND_MS = 3 * 60 * 1000;
 
 function normalizedHost() {
   return location.hostname.replace(/^www\./, "");
@@ -95,6 +95,7 @@ function normalizeGuardSession(rawSession) {
     returnUrl,
     taskText: String(rawSession.taskText || "回到 Tryrevive 继续计划").slice(0, 80),
     searchQuery: String(rawSession.searchQuery || "").slice(0, 80),
+    stepIndex: Math.max(1, Math.min(3, Math.round(Number(rawSession.stepIndex) || 1))),
     minutes: Math.max(1, Math.min(240, Math.round(Number(rawSession.minutes) || 1))),
     startedAt,
     endAt,
@@ -137,6 +138,24 @@ function formatDuration(ms) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function extendGuardSession(panel) {
+  const current = panel.__tryreviveSession;
+  if (!current) return;
+
+  const now = Date.now();
+  const updated = {
+    ...current,
+    endAt: Math.max(Number(current.endAt) || now, now) + EXTEND_MS,
+    returnAt: Math.max(Number(current.returnAt) || now, now) + EXTEND_MS
+  };
+  updated.reminderAt = Math.max(now, updated.endAt - Number(updated.reminderSeconds || 60) * 1000);
+
+  chrome.storage.local.set({ [GUARD_STORAGE_KEY]: updated }, () => {
+    notifyBackground("tryreviveGuardSessionUpdated", updated);
+    renderSession(panel, updated);
+  });
+}
+
 function createPanel() {
   const oldButton = document.getElementById(LEGACY_RETURN_BUTTON_ID);
   if (oldButton) oldButton.remove();
@@ -154,7 +173,7 @@ function createPanel() {
         right: 20px;
         bottom: 22px;
         z-index: 2147483647;
-        width: min(320px, calc(100vw - 28px));
+        width: min(340px, calc(100vw - 28px));
         padding: 14px;
         border: 1px solid rgba(255, 255, 255, .14);
         border-radius: 18px;
@@ -191,7 +210,7 @@ function createPanel() {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 10px;
+        gap: 12px;
       }
       #${PANEL_ID} .tryrevive-time {
         color: #ff9d80;
@@ -199,7 +218,15 @@ function createPanel() {
         font-weight: 750;
         letter-spacing: 0;
       }
-      #${PANEL_ID} .tryrevive-return {
+      #${PANEL_ID} .tryrevive-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      #${PANEL_ID} .tryrevive-return,
+      #${PANEL_ID} .tryrevive-extend {
         min-height: 38px;
         padding: 0 13px;
         border: 1px solid rgba(255, 255, 255, .16);
@@ -210,11 +237,23 @@ function createPanel() {
         font: 700 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         transition: background 180ms ease, transform 180ms cubic-bezier(.16, 1, .3, 1);
       }
-      #${PANEL_ID} .tryrevive-return:hover {
+      #${PANEL_ID} .tryrevive-extend {
+        display: none;
+        align-items: center;
+        border-color: rgba(255, 157, 128, .36);
+        background: rgba(255, 138, 101, .14);
+      }
+      #${PANEL_ID}.is-warning .tryrevive-extend,
+      #${PANEL_ID}.is-returning .tryrevive-extend {
+        display: inline-flex;
+      }
+      #${PANEL_ID} .tryrevive-return:hover,
+      #${PANEL_ID} .tryrevive-extend:hover {
         background: rgba(255, 255, 255, .15);
         transform: translateY(-1px);
       }
-      #${PANEL_ID} .tryrevive-return:focus-visible {
+      #${PANEL_ID} .tryrevive-return:focus-visible,
+      #${PANEL_ID} .tryrevive-extend:focus-visible {
         outline: 3px solid rgba(255, 138, 101, .45);
         outline-offset: 3px;
       }
@@ -223,9 +262,18 @@ function createPanel() {
           right: 14px;
           bottom: 16px;
         }
+        #${PANEL_ID} .tryrevive-row {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+        #${PANEL_ID} .tryrevive-actions {
+          justify-content: flex-start;
+          width: 100%;
+        }
       }
       @media (prefers-reduced-motion: reduce) {
-        #${PANEL_ID} .tryrevive-return {
+        #${PANEL_ID} .tryrevive-return,
+        #${PANEL_ID} .tryrevive-extend {
           transition: none;
         }
       }
@@ -235,7 +283,10 @@ function createPanel() {
     <div class="tryrevive-task"></div>
     <div class="tryrevive-row">
       <div class="tryrevive-time"></div>
-      <button type="button" class="tryrevive-return">现在返回</button>
+      <div class="tryrevive-actions">
+        <button type="button" class="tryrevive-extend">再给我 3 分钟</button>
+        <button type="button" class="tryrevive-return">现在返回</button>
+      </div>
     </div>
   `;
   panel.querySelector(".tryrevive-return").addEventListener("click", () => {
@@ -244,6 +295,7 @@ function createPanel() {
       location.href = returnUrl;
     });
   });
+  panel.querySelector(".tryrevive-extend").addEventListener("click", () => extendGuardSession(panel));
   document.documentElement.appendChild(panel);
   return panel;
 }
@@ -262,6 +314,7 @@ function renderSession(panel, session) {
   const taskEl = panel.querySelector(".tryrevive-task");
   const timeEl = panel.querySelector(".tryrevive-time");
 
+  panel.__tryreviveSession = session;
   panel.dataset.returnUrl = normalizeReturnUrl(session.returnUrl);
   panel.classList.toggle("is-warning", remainingMs <= session.reminderSeconds * 1000 && remainingMs > 0);
   panel.classList.toggle("is-returning", remainingMs <= 0);
@@ -290,6 +343,7 @@ function renderSession(panel, session) {
 function injectReturnOnlyPanel(returnUrl) {
   const panel = createPanel();
   panel.dataset.returnUrl = normalizeReturnUrl(returnUrl);
+  panel.__tryreviveSession = null;
   panel.classList.remove("is-warning", "is-returning");
   panel.querySelector(".tryrevive-title").textContent = "可以回到 Tryrevive";
   panel.querySelector(".tryrevive-task").textContent = "继续原来的计划，别被推荐流带走太远。";
@@ -300,7 +354,13 @@ function startGuardPanel(session) {
   const panel = createPanel();
   const tick = () => renderSession(panel, session);
   tick();
-  const intervalId = window.setInterval(tick, 1000);
+  const intervalId = window.setInterval(() => {
+    chrome.storage.local.get([GUARD_STORAGE_KEY], result => {
+      const latest = normalizeGuardSession(result[GUARD_STORAGE_KEY]) || session;
+      session = latest;
+      renderSession(panel, latest);
+    });
+  }, 1000);
   document.addEventListener("visibilitychange", tick);
   window.addEventListener("pagehide", () => window.clearInterval(intervalId), { once: true });
 }
