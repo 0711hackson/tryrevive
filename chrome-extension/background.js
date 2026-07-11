@@ -5,6 +5,7 @@
 const GUARD_STORAGE_KEY = "tryreviveGuardSession";
 const REMINDER_ALARM = "tryreviveGuardReminder";
 const DEADLINE_ALARM = "tryreviveGuardDeadline";
+const CANONICAL_TRYREVIVE_URL = "https://0711hackson.github.io/tryrevive/";
 
 const GUARDED_HOSTS = [
   "xiaohongshu.com",
@@ -30,6 +31,22 @@ function normalizeHost(url) {
 function isGuardedUrl(url) {
   const host = normalizeHost(url);
   return GUARDED_HOSTS.some(domain => host === domain || host.endsWith("." + domain));
+}
+
+function normalizeReturnUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.hostname === "tryrevive.online" || url.hostname === "www.tryrevive.online") {
+      return CANONICAL_TRYREVIVE_URL;
+    }
+    if (url.hostname === "0711hackson.github.io" && !url.pathname.startsWith("/tryrevive")) {
+      return CANONICAL_TRYREVIVE_URL;
+    }
+    if (url.protocol === "http:" || url.protocol === "https:") return url.href;
+  } catch {
+    // fall through to the canonical deployment
+  }
+  return CANONICAL_TRYREVIVE_URL;
 }
 
 function getGuardSession(callback) {
@@ -81,7 +98,7 @@ function forceReturnActiveGuardedTab(session) {
     const tab = tabs && tabs[0];
     if (!tab || !isGuardedUrl(tab.url || "")) return;
 
-    chrome.tabs.update(tab.id, { url: session.returnUrl }, () => {
+    chrome.tabs.update(tab.id, { url: normalizeReturnUrl(session.returnUrl) }, () => {
       chrome.storage.local.remove(GUARD_STORAGE_KEY);
       clearGuardAlarms();
     });

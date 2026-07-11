@@ -2461,9 +2461,21 @@ function openExternal(rawUrl) {
 }
 
 const RETURN_GRACE_SECONDS = 10;
+const CANONICAL_TRYREVIVE_URL = "https://0711hackson.github.io/tryrevive/";
 
 function buildReturnUrl() {
-  return window.location.href;
+  try {
+    const url = new URL(window.location.href);
+    if (url.hostname === "tryrevive.online" || url.hostname === "www.tryrevive.online") {
+      return CANONICAL_TRYREVIVE_URL;
+    }
+    if (url.hostname === "0711hackson.github.io" && !url.pathname.startsWith("/tryrevive")) {
+      return CANONICAL_TRYREVIVE_URL;
+    }
+    return url.href;
+  } catch (error) {
+    return CANONICAL_TRYREVIVE_URL;
+  }
 }
 
 function publishExternalGuardSession(session) {

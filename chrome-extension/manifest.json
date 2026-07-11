@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tryrevive Attention Guard",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "夺回你的注意力主权 - 按 Tryrevive 计划倒计时并自动返回",
   "permissions": [
     "tabs",

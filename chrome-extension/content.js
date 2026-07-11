@@ -28,6 +28,7 @@ const GUARD_STORAGE_KEY = "tryreviveGuardSession";
 const RETURN_URL_KEY = "tryreviveReturnUrl";
 const PANEL_ID = "tryrevive-guard-panel";
 const LEGACY_RETURN_BUTTON_ID = "tryrevive-return-button";
+const CANONICAL_TRYREVIVE_URL = "https://0711hackson.github.io/tryrevive/";
 
 function normalizedHost() {
   return location.hostname.replace(/^www\./, "");
@@ -55,9 +56,21 @@ function isValidUrl(value) {
   }
 }
 
+function normalizeReturnUrl(value) {
+  if (!isValidUrl(value)) return CANONICAL_TRYREVIVE_URL;
+  const url = new URL(value);
+  if (url.hostname === "tryrevive.online" || url.hostname === "www.tryrevive.online") {
+    return CANONICAL_TRYREVIVE_URL;
+  }
+  if (url.hostname === "0711hackson.github.io" && !url.pathname.startsWith("/tryrevive")) {
+    return CANONICAL_TRYREVIVE_URL;
+  }
+  return url.href;
+}
+
 function rememberTryreviveUrl() {
   if (!isTryrevivePage()) return;
-  chrome.storage.local.set({ [RETURN_URL_KEY]: location.href });
+  chrome.storage.local.set({ [RETURN_URL_KEY]: normalizeReturnUrl(location.href) });
 }
 
 function notifyBackground(action, session = null) {
@@ -72,7 +85,7 @@ function normalizeGuardSession(rawSession) {
   const startedAt = Number(rawSession.startedAt);
   const endAt = Number(rawSession.endAt);
   const returnAt = Number(rawSession.returnAt);
-  const returnUrl = String(rawSession.returnUrl || "");
+  const returnUrl = normalizeReturnUrl(rawSession.returnUrl);
   if (!Number.isFinite(startedAt) || !Number.isFinite(endAt) || !Number.isFinite(returnAt)) return null;
   if (endAt <= startedAt || returnAt < endAt || !isValidUrl(returnUrl)) return null;
   return {
@@ -227,7 +240,7 @@ function createPanel() {
   `;
   panel.querySelector(".tryrevive-return").addEventListener("click", () => {
     chrome.storage.local.remove(GUARD_STORAGE_KEY, () => {
-      const returnUrl = panel.dataset.returnUrl || "https://tryrevive.online/";
+      const returnUrl = normalizeReturnUrl(panel.dataset.returnUrl);
       location.href = returnUrl;
     });
   });
@@ -237,7 +250,7 @@ function createPanel() {
 
 function redirectToReturn(session) {
   chrome.storage.local.remove(GUARD_STORAGE_KEY, () => {
-    location.href = session.returnUrl;
+    location.href = normalizeReturnUrl(session.returnUrl);
   });
 }
 
@@ -249,7 +262,7 @@ function renderSession(panel, session) {
   const taskEl = panel.querySelector(".tryrevive-task");
   const timeEl = panel.querySelector(".tryrevive-time");
 
-  panel.dataset.returnUrl = session.returnUrl;
+  panel.dataset.returnUrl = normalizeReturnUrl(session.returnUrl);
   panel.classList.toggle("is-warning", remainingMs <= session.reminderSeconds * 1000 && remainingMs > 0);
   panel.classList.toggle("is-returning", remainingMs <= 0);
 
@@ -276,7 +289,7 @@ function renderSession(panel, session) {
 
 function injectReturnOnlyPanel(returnUrl) {
   const panel = createPanel();
-  panel.dataset.returnUrl = returnUrl;
+  panel.dataset.returnUrl = normalizeReturnUrl(returnUrl);
   panel.classList.remove("is-warning", "is-returning");
   panel.querySelector(".tryrevive-title").textContent = "可以回到 Tryrevive";
   panel.querySelector(".tryrevive-task").textContent = "继续原来的计划，别被推荐流带走太远。";
@@ -304,7 +317,9 @@ function hydrateGuardedPage() {
       redirectToReturn(session);
       return;
     }
-    injectReturnOnlyPanel(result[RETURN_URL_KEY] || "https://tryrevive.online/");
+    const returnUrl = normalizeReturnUrl(result[RETURN_URL_KEY]);
+    chrome.storage.local.set({ [RETURN_URL_KEY]: returnUrl });
+    injectReturnOnlyPanel(returnUrl);
   });
 }
 
