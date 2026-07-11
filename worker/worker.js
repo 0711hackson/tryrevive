@@ -17,8 +17,37 @@ const ALLOWED_ORIGINS = [
 ];
 
 const DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions";
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MAX_TOKENS_CAP = 1024;      // 单次回复上限，防止额度被大额消耗
 const MAX_MESSAGES = 30;          // 单次请求最多携带的历史条数
+
+// 选择可用的上游：优先 DeepSeek，其次 Anthropic（哪个 Secret 配置正确用哪个）
+function pickProvider(env) {
+  const ds = (env.DEEPSEEK_API_KEY || "").trim();
+  const an = (env.ANTHROPIC_API_KEY || "").trim();
+  if (ds.length > 10) return { name: "deepseek", key: ds };
+  if (an.length > 10) return { name: "anthropic", key: an };
+  return null;
+}
+
+async function callAnthropic(apiKey, { max_tokens, system, messages }) {
+  const upstream = await fetch(ANTHROPIC_URL, {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens,
+      system: system || undefined,
+      messages
+    })
+  });
+  const text = await upstream.text();
+  return { status: upstream.status, text };
+}
 
 function corsHeaders(origin) {
   return {
@@ -95,30 +124,45 @@ export default {
       });
     }
 
-    // OpenAI 兼容格式：system 作为 messages 数组的第一条消息
-    const messagesWithSystem = system
-      ? [{ role: "system", content: system }, ...messages]
-      : messages;
+    const provider = pickProvider(env);
+    if (!provider) {
+      return new Response(JSON.stringify({ error: "no upstream api key configured" }), {
+        status: 500, headers: corsHeaders(origin)
+      });
+    }
 
-    const upstream = await callDeepSeek((env.DEEPSEEK_API_KEY || "").trim(), {
-      model: "deepseek-chat",
-      max_tokens,
-      messages: messagesWithSystem
-    });
+    let upstream, finalBody;
 
-    // 上游空响应时补充可读错误，方便前端诊断
-    const responseBody = upstream.text ||
-      JSON.stringify({ error: `deepseek upstream ${upstream.status} with empty body` });
+    if (provider.name === "anthropic") {
+      // Anthropic 原生格式，响应已是 {content:[{text}]}
+      upstream = await callAnthropic(provider.key, { max_tokens, system, messages });
+      finalBody = upstream.text ||
+        JSON.stringify({ error: `anthropic upstream ${upstream.status} with empty body` });
+    } else {
+      // DeepSeek（OpenAI 兼容）：system 作为 messages 首条
+      const messagesWithSystem = system
+        ? [{ role: "system", content: system }, ...messages]
+        : messages;
 
-    // 把 DeepSeek(OpenAI 格式) 的回复转换成前端期待的 Anthropic 格式 {content:[{text}]}
-    let finalBody = responseBody;
-    if (upstream.status === 200) {
-      try {
-        const data = JSON.parse(responseBody);
-        const text = data && data.choices && data.choices[0] && data.choices[0].message
-          ? data.choices[0].message.content : "";
-        finalBody = JSON.stringify({ content: [{ type: "text", text }] });
-      } catch (e) { /* 保留原始响应 */ }
+      upstream = await callDeepSeek(provider.key, {
+        model: "deepseek-chat",
+        max_tokens,
+        messages: messagesWithSystem
+      });
+
+      const responseBody = upstream.text ||
+        JSON.stringify({ error: `deepseek upstream ${upstream.status} with empty body` });
+
+      // 转换成前端期待的 Anthropic 格式 {content:[{text}]}
+      finalBody = responseBody;
+      if (upstream.status === 200) {
+        try {
+          const data = JSON.parse(responseBody);
+          const text = data && data.choices && data.choices[0] && data.choices[0].message
+            ? data.choices[0].message.content : "";
+          finalBody = JSON.stringify({ content: [{ type: "text", text }] });
+        } catch (e) { /* 保留原始响应 */ }
+      }
     }
 
     return new Response(finalBody, {

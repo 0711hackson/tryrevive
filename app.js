@@ -2713,6 +2713,25 @@ const CLOUD_QUESTIONS = [
   "有被什么卡住吗？跟我说说也可以。",
   "给现在的状态打个分吧，1 到 10 分？"
 ];
+
+// 按小人状态加权的问候（源自 heart-cloud 提示语库）
+const CLOUD_STATE_QUESTIONS = {
+  black: [
+    "我看见你有点被卷走了。现在最想从哪里回来？",
+    "状态好像有些乱。此刻真正想守住的目标是什么？",
+    "先不用责备自己。写一句现在最想重新开始的小想法吧。"
+  ],
+  gray: [
+    "现在状态还好吗？今天最想推进的一个小目标是什么？",
+    "路还在。此刻脑子里最值得留下的想法是哪一句？",
+    "要不要把当前的目标收进来，给自己一个更稳的方向？"
+  ],
+  white: [
+    "现在很清醒。想把这份状态留给哪件事？",
+    "你已经回到自己这里了。下一步想轻轻做什么？",
+    "这份专注挺珍贵的。把它写成一句目标吧。"
+  ]
+};
 const CLOUD_FIRST_DELAY_MS = 10 * 1000;      // 进入首页 10 秒后第一次飘出
 const CLOUD_MIN_GAP_MS = 3 * 60 * 1000;      // 之后每 3~6 分钟随机飘一次
 const CLOUD_MAX_GAP_MS = 6 * 60 * 1000;
@@ -2740,9 +2759,12 @@ function showCloudCheckin() {
   const textEl = document.getElementById("cloud-checkin-text");
   if (!cloud || !textEl) return;
 
+  // 通用问候 + 按当前小人状态加权的心云问候
+  const statePool = CLOUD_STATE_QUESTIONS[state.avatarState] || CLOUD_STATE_QUESTIONS.gray;
+  const pool = CLOUD_QUESTIONS.concat(statePool, statePool); // 状态语双倍权重
   let q = cloudState.question;
-  while (CLOUD_QUESTIONS.length > 1 && q === cloudState.question) {
-    q = CLOUD_QUESTIONS[Math.floor(Math.random() * CLOUD_QUESTIONS.length)];
+  while (pool.length > 1 && q === cloudState.question) {
+    q = pool[Math.floor(Math.random() * pool.length)];
   }
   cloudState.question = q;
   textEl.textContent = q;
