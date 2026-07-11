@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@700&family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Noto+Serif+SC:wght@300;500&family=Ma+Shan+Zheng&display=swap">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20260711-pet-viewport-fix">
 </head>
 <body>
 
@@ -19,32 +19,42 @@
       </div>
       <div class="dialog-body">
         <p>你即将前往 <strong id="intercept-site-name" style="color: var(--text-primary);">社交App</strong> 寻找建议。在陷入算法流之前，请为自己设防：</p>
-        
-        <div class="form-group" style="margin-top: 1rem;">
-          <label class="input-label" for="intercept-duration">预计浏览时间 (分钟)</label>
-          <select id="intercept-duration" class="text-input" style="width: 100%; appearance: none; background-image: radial-gradient(circle, rgba(255,255,255,0.05), transparent); border-radius: 14px;">
-            <option value="1">1 分钟 (测试快速模式)</option>
-            <option value="5">5 分钟 - 快速找灵感</option>
-            <option value="10" selected>10 分钟 - 标本参考</option>
-            <option value="15">15 分钟 - 上限限制</option>
-            <option value="20">20 分钟 - 深度研究</option>
-          </select>
+        <p class="return-path-note"><span aria-hidden="true">↩</span><span>普通浏览器会在当前标签打开，浏览结束后点击浏览器返回键，即可回到这里继续计划。</span></p>
+
+        <div class="form-group intercept-search-group" id="intercept-search-group" hidden>
+          <label class="input-label" for="intercept-search-query"><span id="intercept-search-site">平台</span>搜索关键词</label>
+          <input type="search" id="intercept-search-query" class="text-input" placeholder="例如：考研经验、复试准备" autocomplete="off">
+          <span class="field-helper">将直接打开搜索结果页，跳过首页推荐流。</span>
         </div>
 
-        <div class="form-group">
+        <div class="form-group" style="margin-top: 1rem;">
+          <label class="input-label" for="intercept-duration">三步计划预计总时间 (分钟)</label>
+          <output id="intercept-duration" class="text-input plan-total-time" aria-live="polite">0</output>
+          <span class="field-helper">自动等于下面三个任务预计时间的总和。</span>
+        </div>
+
+        <div class="form-group plan-step-editor">
+          <label class="input-label" for="intercept-step1">今日计划的第一步是？</label>
+          <input type="text" id="intercept-step1" class="text-input" placeholder="例如：列出今天要完成的最小任务" autocomplete="off">
+          <label class="step-minutes-editor" for="intercept-step1-minutes"><span>预计用时</span><span><input id="intercept-step1-minutes" type="number" min="0" max="240" value="0" inputmode="numeric"> 分钟</span></label>
+        </div>
+
+        <div class="form-group plan-step-editor">
           <label class="input-label" for="intercept-step2">今日计划的第二步是？</label>
           <input type="text" id="intercept-step2" class="text-input" placeholder="例如：整理素材，提取排版草图" autocomplete="off">
+          <label class="step-minutes-editor" for="intercept-step2-minutes"><span>预计用时</span><span><input id="intercept-step2-minutes" type="number" min="0" max="240" value="0" inputmode="numeric"> 分钟</span></label>
         </div>
 
-        <div class="form-group">
+        <div class="form-group plan-step-editor">
           <label class="input-label" for="intercept-step3">今日计划的第三步是？</label>
           <input type="text" id="intercept-step3" class="text-input" placeholder="例如：开始动手设计第一页 Canvas" autocomplete="off">
+          <label class="step-minutes-editor" for="intercept-step3-minutes"><span>预计用时</span><span><input id="intercept-step3-minutes" type="number" min="0" max="240" value="0" inputmode="numeric"> 分钟</span></label>
         </div>
       </div>
-      
+
       <div style="display: flex; gap: 0.8rem; width: 100%;">
-        <button onclick="cancelRedirect()" class="btn-sec" style="flex: 1;">留下来开始第一步</button>
-        <button onclick="confirmRedirect()" class="btn-primary" style="flex: 1; padding: 0.8rem 1.5rem; font-size: 0.9rem;">带着计划前往</button>
+        <button onclick="cancelRedirect()" class="btn-sec" style="flex: 1;">返回</button>
+        <button onclick="confirmRedirect()" class="btn-primary" style="flex: 1; padding: 0.8rem 1.5rem; font-size: 0.9rem;">直接开始第一步</button>
       </div>
     </div>
   </div>
@@ -59,7 +69,7 @@
       <div id="blocking-mbti-quote" style="font-family: var(--font-serif); font-size: 1.15rem; color: var(--accent-light); margin-bottom: 2rem; line-height: 1.5; font-style: italic;">
         "你的梦想在等待你..."
       </div>
-      
+
       <div style="display: flex; flex-direction: column; gap: 0.8rem; width: 100%;">
         <button onclick="extendFocusTimer(300)" class="btn-sec" style="width: 100%; border-color: rgba(239, 68, 68, 0.35);">确认再延时 5 分钟</button>
         <button onclick="enterMeditationFromBlocker()" class="btn-primary" style="width: 100%;">立即进入禅修冷静</button>
@@ -101,12 +111,12 @@
   </div>
 
   <main class="app-viewport">
-    
+
     <!-- 1. NARRATIVE ENTRANCE SCREEN -->
     <section id="view-narrative" class="view-screen narrative-paper active">
       <canvas id="narrative-sprout-canvas" style="position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none;"></canvas>
       <button onclick="skipNarrative()" class="skip-narrative-btn">跳过叙事 ➜</button>
-      
+
       <div class="narrative-content">
         <p class="narrative-line" id="narrative-1">hey，遥远的朋友。</p>
         <p class="narrative-line" id="narrative-2">见字如面。</p>
@@ -166,7 +176,7 @@
         <h3 id="quiz-question-text" style="font-family: var(--font-serif); font-size: 1.15rem; font-weight: 500; line-height: 1.5; margin-bottom: 1.5rem;">
           正在加载测评问题...
         </h3>
-        
+
         <div id="quiz-options-box" style="width: 100%;">
           <!-- Quiz options buttons injected here -->
         </div>
@@ -195,7 +205,7 @@
             <circle cx="0" cy="0" r="22" fill="rgba(255, 255, 255, 0.03)" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="3 3"/>
             <circle cx="0" cy="0" r="10" id="wreath-center-node" fill="var(--accent)"/>
           </svg>
-          
+
           <!-- HSL Slider Overlay (center of wreath popover) -->
           <div id="wreath-slider-overlay" class="wreath-slider-overlay">
             <div style="font-size: 0.65rem; color: var(--accent); font-weight: 600; margin-bottom: 0.3rem;">🎨 单色微调</div>
@@ -211,7 +221,7 @@
             </div>
             <button onclick="closeWreathSlider()" style="margin-top: 0.4rem; font-size: 0.55rem; color: var(--accent-light); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">确定</button>
           </div>
-          
+
           <div class="wreath-center-mandala">
             <div id="wreath-pulse-core" class="wreath-center-dot"></div>
           </div>
@@ -232,26 +242,20 @@
           <label class="input-label" for="input-motivation">想去的地方 / 想完成的目标（如：攒钱去冰岛看极光）</label>
           <input type="text" id="input-motivation" class="text-input" placeholder="如：逃离垃圾推荐流，去创造属于自己的价值" autocomplete="off">
         </div>
-        <!-- Anthropic API Key -->
-        <div class="form-group">
-          <label class="input-label" for="input-api-key">Anthropic API Key（选填，开启 AI 禅修心语）</label>
-          <input type="password" id="input-api-key" class="text-input" placeholder="输入 console.anthropic.com 密钥 (选填，仅本地保存)" autocomplete="off">
-        </div>
-        <!-- AI Proxy URL (Cloudflare Worker) -->
-        <div class="form-group">
-          <label class="input-label" for="input-ai-proxy">AI 代理地址（推荐：部署 Cloudflare Worker 后填入，国内可直连）</label>
-          <input type="text" id="input-ai-proxy" class="text-input" placeholder="如 https://tryrevive-ai.xxx.workers.dev" autocomplete="off">
+        <div class="form-group ai-service-status" aria-label="AI 服务状态">
+          <span class="input-label">AI 心语服务</span>
+          <div class="ai-service-ready"><span aria-hidden="true"></span>DeepSeek 已由 Tryrevive 安全接入，无需填写密钥</div>
         </div>
         <!-- Pet Style Option Selection -->
         <div class="form-group" style="margin-bottom: 0;">
           <label class="input-label">疗愈桌宠表现形态</label>
           <div style="display: flex; gap: 1.5rem; margin-top: 0.4rem;">
             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; cursor: pointer; color: var(--text-primary);">
-              <input type="radio" name="pet-style-option" value="A" style="accent-color: var(--accent);"> 
+              <input type="radio" name="pet-style-option" value="A" style="accent-color: var(--accent);">
               外观 A (极简纯色面包体)
             </label>
             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; cursor: pointer; color: var(--text-primary);">
-              <input type="radio" name="pet-style-option" value="B" checked style="accent-color: var(--accent);"> 
+              <input type="radio" name="pet-style-option" value="B" checked style="accent-color: var(--accent);">
               外观 B (灵动小草芽腮红体)
             </label>
           </div>
@@ -275,7 +279,7 @@
 
       <!-- Centered Layout Container (Google-Style Page) -->
       <div class="google-home-container" style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; width: 100%; padding: 1.5rem 0;">
-        
+
         <!-- Welcome Serif Header -->
         <div style="text-align: center; margin-bottom: 1.8rem;">
           <h2 id="dashboard-welcome-title" style="font-family: var(--font-serif); font-size: 2.2rem; font-weight: 500; color: var(--text-primary); margin-bottom: 0.3rem;">你好，朋友！</h2>
@@ -310,7 +314,7 @@
               <span>编辑</span>
             </button>
           </div>
-          
+
           <!-- Custom App Icons Dock -->
           <div id="app-dock-grid" class="app-dock-grid">
             <!-- Dynamic Apps list will render here. Appends "+" icon at end. -->
@@ -336,6 +340,12 @@
           <button onclick="toggleAIChat()" class="ai-chat-close">✕</button>
         </div>
         <div id="ai-chat-messages" class="ai-chat-messages"></div>
+        <div class="ai-plan-action">
+          <button id="ai-generate-plan" type="button" onclick="generatePlanFromChat()" class="ai-generate-plan">
+            <span aria-hidden="true">✦</span>
+            <span>根据对话生成三步计划</span>
+          </button>
+        </div>
         <div class="ai-chat-inputrow">
           <input type="text" id="ai-chat-input" class="ai-chat-input"
                  placeholder="此刻在想什么…" autocomplete="off"
@@ -347,28 +357,29 @@
       <!-- Today's Goal Coach Card (Compact design) -->
       <div id="goal-coach-popup" class="goal-popup-card" style="margin-bottom: 1rem; width: 100%; max-width: 500px; align-self: center; background: rgba(15, 17, 26, 0.45); border-color: rgba(255,255,255,0.04);">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span class="input-label" style="font-size: 0.7rem; color: var(--accent);">今日的第一步</span>
+          <span id="goal-plan-title" class="input-label" style="font-size: 0.7rem; color: var(--accent);">今日的第一步</span>
           <button onclick="document.getElementById('goal-coach-popup').style.display='none'" style="color: var(--text-muted); cursor: pointer; font-size: 0.8rem;">✕</button>
         </div>
         <div style="font-size: 0.85rem; font-weight: 500;">
           减少启动磨擦。你今天的第一步微小想法是？
         </div>
         <input type="text" id="goal-first-step-input" class="text-input" placeholder="输入你想完成的微小一步..." style="padding: 0.5rem 0.8rem; font-size: 0.8rem; border-radius: 10px;">
-        
+        <div class="goal-step-time"><span>预计用时</span><strong id="display-step-1-time">0 分钟</strong></div>
+
         <div class="goal-suggest-list" style="margin-top: 0.2rem;">
           <button onclick="applyGoalSuggestion('倒一杯热水，放下手机')" class="goal-suggest-btn" style="padding: 0.4rem; font-size: 0.7rem;">💧 倒杯水</button>
           <button onclick="applyGoalSuggestion('关闭所有无关浏览器标签')" class="goal-suggest-btn" style="padding: 0.4rem; font-size: 0.7rem;">💻 关网页</button>
           <button onclick="applyGoalSuggestion('阅读 2 页实体书籍')" class="goal-suggest-btn" style="padding: 0.4rem; font-size: 0.7rem;">📖 看两页</button>
         </div>
-        
-        <div id="goal-plan-steps-display" style="display: none; border-top: 1px dashed rgba(255,255,255,0.06); padding-top: 0.6rem; margin-top: 0.2rem; font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;">
-          <div><strong style="color: var(--accent);">第二步计划：</strong><span id="display-step-2">-</span></div>
-          <div style="margin-top: 0.2rem;"><strong style="color: var(--accent);">第三步计划：</strong><span id="display-step-3">-</span></div>
+
+        <div id="goal-plan-steps-display" class="goal-plan-steps-display" style="display: none;">
+          <div class="goal-plan-step-row"><div><strong>第二步计划</strong><span id="display-step-2">-</span></div><span id="display-step-2-time" class="goal-time-pill">0 分钟</span></div>
+          <div class="goal-plan-step-row"><div><strong>第三步计划</strong><span id="display-step-3">-</span></div><span id="display-step-3-time" class="goal-time-pill">0 分钟</span></div>
         </div>
       </div>
 
       <!-- Floating Desk Pet Container (漫画风桌宠挂件) -->
-      <div id="desk-pet-container" class="floating-desk-pet-container">
+      <div id="desk-pet-container" class="floating-desk-pet-container" aria-label="可拖动桌宠">
         <canvas id="avatar-canvas" class="avatar-canvas" style="width: 100px; height: 100px;"></canvas>
         <div id="state-badge-container" class="avatar-state-badge state-gray" style="font-size: 0.6rem; padding: 0.15rem 0.5rem; top: -15px; right: -5px;">
           <span class="badge-dot"></span>
@@ -400,7 +411,7 @@
 
     <!-- 6. MEDITATION / GALAXY SCREEN -->
     <section id="view-meditation" class="view-screen" style="padding: 0;">
-      
+
       <!-- 6a. MEDITATION SETUP OVERLAY (时间及气场设定) -->
       <div id="meditation-setup-overlay" style="position: absolute; inset: 0; background: rgba(10, 10, 15, 0.85); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 2rem;">
         <div class="glass-card" style="width: 100%; max-width: 400px; text-align: center;">
@@ -408,13 +419,13 @@
           <p id="meditation-goal-review" class="desc-md" style="font-size: 0.88rem; margin-bottom: 1.5rem; color: var(--text-primary); font-weight: 500;">
             正在回顾今日目标...
           </p>
-          
+
           <!-- Custom meditation phrase settings during setup -->
           <div class="form-group" style="text-align: left; margin-bottom: 1.5rem;">
             <label class="input-label" for="meditation-setup-quote" style="font-size: 0.7rem;">✍️ 本次专注心语 (可随时修改)</label>
             <input type="text" id="meditation-setup-quote" class="text-input" placeholder="输入能让你放松的话，将与自适应警句混合浮现..." style="padding: 0.5rem 0.8rem; font-size: 0.8rem; border-radius: 10px;">
           </div>
-          
+
           <div style="display: flex; flex-direction: column; gap: 0.8rem; width: 100%;">
             <button onclick="startMeditationSession(60)" class="btn-primary" style="font-size: 0.95rem; padding: 0.9rem;">1 分钟快速调整</button>
             <button onclick="startMeditationSession(300)" class="btn-primary" style="font-size: 0.95rem; padding: 0.9rem; background: linear-gradient(135deg, var(--accent-fill-light), var(--accent-fill));">5 分钟深度心流</button>
@@ -424,12 +435,12 @@
       </div>
 
       <div class="galaxy-container">
-        
+
         <canvas id="galaxy-canvas" class="galaxy-canvas"></canvas>
-        
+
         <!-- Canvas for rendering watercolor cloud bubbles in background -->
         <canvas id="cloud-bubble-canvas" style="position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none;"></canvas>
-        
+
         <div id="bubble-prompts-area" class="bubble-prompts-area" style="z-index: 3;"></div>
 
         <!-- Breathing Sanctuary (Clean meditation ring, no pet avatar) -->
@@ -446,7 +457,7 @@
             <button onclick="exitMeditationCleanly()" class="btn-sec" style="background: rgba(0,0,0,0.35); border-color: rgba(255,255,255,0.08); pointer-events: auto;">退出禅修</button>
             <div id="meditation-timer" class="meditation-timer">05:00</div>
           </div>
-          
+
           <div style="text-align: center; padding-bottom: 1.5rem; pointer-events: auto;">
             <button onclick="askUserStatusDuringHealing()" class="btn-sec" style="font-size: 0.75rem; padding: 0.35rem 0.8rem; background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.05);">记录当下的状态</button>
           </div>
@@ -470,6 +481,6 @@
 
   </main>
 
-  <script src="app.js"></script>
+    <script src="app.js?v=20260711-pet-viewport-fix"></script>
 </body>
 </html>

@@ -266,12 +266,15 @@ const state = {
     customQuote: "", // 用户自定心语
     calmingColor: { h: 220, s: 65, l: 55 }, // HSL with custom lightness
     showPet: true, // 桌宠小人开启/隐藏开关
-    apiKey: "", // Anthropic API Key
-    aiProxyUrl: "", // Cloudflare Worker 代理地址（优先于直连）
     currentGoal: "",
     firstStep: "",
+    step1Minutes: 0,
     step2: "",
+    step2Minutes: 0,
     step3: "",
+    step3Minutes: 0,
+    planTimeSource: "none",
+    planTimeDefaultsRemovedV1: true,
     quizAnswers: [],
 
     // User Custom App Dock config
@@ -286,18 +289,19 @@ const state = {
   timerInterval: null,
   timeLeft: 300,
   awayStartTime: null,
-  
+
   // Blocker loop state
   blockerTimerActive: false,
   blockerTargetSite: "",
   blockerTargetUrl: "",
+  blockerSearchQuery: "",
   blockerTimeLimitSec: 0,
   blockerStartTime: null,
   blockerInterval: null,
-  
+
   // Dock Edit Mode state
   dockEditMode: false,
-  
+
   canvasAnimIds: {
     avatar: null,
     galaxy: null,
@@ -329,12 +333,12 @@ function startOceanWaves() {
     if (audioCtx.state === 'suspended') {
       audioCtx.resume();
     }
-    
+
     const bufferSize = 2 * audioCtx.sampleRate;
     const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
     let lastOut = 0.0;
-    
+
     // Brownian Noise low rumble tide effect
     for (let i = 0; i < bufferSize; i++) {
       const white = Math.random() * 2 - 1;
@@ -342,22 +346,22 @@ function startOceanWaves() {
       lastOut = output[i];
       output[i] *= 3.5;
     }
-    
+
     wavesNode = audioCtx.createBufferSource();
     wavesNode.buffer = noiseBuffer;
     wavesNode.loop = true;
-    
+
     wavesFilter = audioCtx.createBiquadFilter();
     wavesFilter.type = "lowpass";
     wavesFilter.frequency.setValueAtTime(300, audioCtx.currentTime);
-    
+
     wavesGain = audioCtx.createGain();
     wavesGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-    
+
     wavesNode.connect(wavesFilter);
     wavesFilter.connect(wavesGain);
     wavesGain.connect(audioCtx.destination);
-    
+
     wavesNode.start();
   } catch (e) {
     console.error("Audio Waves start failed:", e);
@@ -388,21 +392,21 @@ function stopOceanWaves() {
 function playSingleHeartbeat() {
   if (!audioCtx) initAudio();
   if (audioCtx.state === 'suspended') audioCtx.resume();
-  
+
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
-  
+
   osc.type = "sine";
   osc.frequency.setValueAtTime(65, audioCtx.currentTime);
-  
+
   gain.gain.setValueAtTime(0, audioCtx.currentTime);
   gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.04);
   gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
-  
+
   gain.gain.setValueAtTime(0, audioCtx.currentTime + 0.28);
   gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.32);
   gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.55);
-  
+
   osc.connect(gain);
   gain.connect(audioCtx.destination);
   osc.start();
@@ -455,26 +459,34 @@ function switchView(viewName) {
   }
   state.activeView = viewName;
 
+  // 桌宠挂到 body 后不再依赖页面容器显隐，因此在切页时明确控制它。
+  const globalPetContainer = document.getElementById("desk-pet-container");
+  if (globalPetContainer) {
+    globalPetContainer.style.display = viewName === "home" && state.userProfile.showPet
+      ? "block"
+      : "none";
+  }
+
   // Initialize specific page logics
   if (viewName === "home") {
     // Dock Edit Mode disabled by default
     state.dockEditMode = false;
     const editBtn = document.getElementById("edit-dock-btn");
     if (editBtn) editBtn.innerHTML = "<span>编辑</span>";
-    
+
     renderAppDock();
-    
+
     // Sync Pet display
     const petContainer = document.getElementById("desk-pet-container");
     if (petContainer) {
       petContainer.style.display = state.userProfile.showPet ? "block" : "none";
     }
-    
+
     if (state.userProfile.showPet) {
       initAvatarCanvas("avatar-canvas", "avatar");
       initActionCycle();
     }
-    
+
     // MBTI template warning pre-generation & synchronization
     syncWarningMotivationalDOM();
 
@@ -485,31 +497,27 @@ function switchView(viewName) {
     const setupOverlay = document.getElementById("meditation-setup-overlay");
     const goalReview = document.getElementById("meditation-goal-review");
     const setupInput = document.getElementById("meditation-setup-quote");
-    
+
     if (setupOverlay) setupOverlay.style.display = "flex";
     if (goalReview) {
-      goalReview.textContent = state.userProfile.firstStep ? 
-        `今日设防目标：${state.userProfile.firstStep}` : 
+      goalReview.textContent = state.userProfile.firstStep ?
+        `今日设防目标：${state.userProfile.firstStep}` :
         `今日设防目标：专注当下，自我对话`;
     }
     if (setupInput) setupInput.value = state.userProfile.customQuote || "";
-    
+
   } else if (viewName === "onboarding") {
     // Fill text inputs from state
     const customQuoteInput = document.getElementById("input-custom-quote");
     const motivationInput = document.getElementById("input-motivation");
-    const apiKeyInput = document.getElementById("input-api-key");
-    const aiProxyInput = document.getElementById("input-ai-proxy");
     if (customQuoteInput) customQuoteInput.value = state.userProfile.customQuote || "";
     if (motivationInput) motivationInput.value = state.userProfile.motivation || "";
-    if (apiKeyInput) apiKeyInput.value = state.userProfile.apiKey || "";
-    if (aiProxyInput) aiProxyInput.value = state.userProfile.aiProxyUrl || "";
-    
+
     // Set pet style radio checks
     const petStyle = state.userProfile.petStyle || "B";
     const radioEl = document.querySelector(`input[name="pet-style-option"][value="${petStyle}"]`);
     if (radioEl) radioEl.checked = true;
-    
+
     renderColorWreath();
   } else if (viewName === "narrative") {
     NARRATIVE_LINES.forEach(id => {
@@ -553,7 +561,7 @@ function loadUserProfile(username) {
   if (!save) return null;
   try {
     const loaded = JSON.parse(save);
-    
+
     // Safety compatibility fallbacks to prevent load crash
     if (!loaded.appDock) {
       loaded.appDock = defaultAppDock();
@@ -575,6 +583,28 @@ function loadUserProfile(username) {
     if (loaded.aiProxyUrl === undefined) {
       loaded.aiProxyUrl = "";
     }
+    if (loaded.planTimeSource === undefined) {
+      const wasOldDefault = Number(loaded.step1Minutes) === 10 && Number(loaded.step2Minutes) === 20 && Number(loaded.step3Minutes) === 30;
+      loaded.planTimeSource = wasOldDefault ? "none" : "manual";
+      if (wasOldDefault) {
+        loaded.step1Minutes = 0;
+        loaded.step2Minutes = 0;
+        loaded.step3Minutes = 0;
+      }
+    }
+    if (!loaded.planTimeDefaultsRemovedV1) {
+      if (loaded.planTimeSource !== "ai") {
+        loaded.step1Minutes = 0;
+        loaded.step2Minutes = 0;
+        loaded.step3Minutes = 0;
+        loaded.planTimeSource = "none";
+      }
+      loaded.planTimeDefaultsRemovedV1 = true;
+      localStorage.setItem(`tryrevive_save_${username}`, JSON.stringify(loaded));
+    }
+    if (!Number.isFinite(Number(loaded.step1Minutes))) loaded.step1Minutes = 0;
+    if (!Number.isFinite(Number(loaded.step2Minutes))) loaded.step2Minutes = 0;
+    if (!Number.isFinite(Number(loaded.step3Minutes))) loaded.step3Minutes = 0;
     if (loaded.calmingColor === undefined) {
       loaded.calmingColor = { h: 220, s: 65, l: 55 };
     }
@@ -632,8 +662,13 @@ async function handleRegister() {
     petStyle: "B",
     currentGoal: "",
     firstStep: "",
+    step1Minutes: 0,
     step2: "",
+    step2Minutes: 0,
     step3: "",
+    step3Minutes: 0,
+    planTimeSource: "none",
+    planTimeDefaultsRemovedV1: true,
     quizAnswers: [],
 
     appDock: defaultAppDock(),
@@ -697,20 +732,20 @@ function applyThemeColor(h, s, l) {
   document.documentElement.style.setProperty("--theme-h", h);
   document.documentElement.style.setProperty("--theme-s", `${s}%`);
   document.documentElement.style.setProperty("--theme-l", `${l}%`);
-  
+
   // 6:3:1 Rule adjustments
   // 魂 (60%): Background (Deep Charcoal tinted with selected calming color)
   const bgGradStart = `hsl(${h}, ${s * 0.12}%, 9%)`;
   const bgGradEnd = `hsl(${(h + 25) % 360}, ${s * 0.08}%, 5%)`;
   document.documentElement.style.setProperty("--bg-gradient-start", bgGradStart);
   document.documentElement.style.setProperty("--bg-gradient-end", bgGradEnd);
-  
+
   // 辅 (30%): card textures (Focuszen shallow charcoal)
   const glassBg = `hsla(${h}, ${s * 0.15}%, 14%, 0.65)`;
   const glassBorder = `hsla(${h}, ${s}%, 55%, 0.05)`;
   document.documentElement.style.setProperty("--surface-glass", glassBg);
   document.documentElement.style.setProperty("--surface-glass-border", glassBorder);
-  
+
   // 点缀 (10%): Hue custom lightness
   const accent = `hsl(${h}, ${s}%, ${l}%)`;
   const accentLight = `hsl(${h}, ${s}%, ${Math.min(l + 10, 85)}%)`;
@@ -757,38 +792,38 @@ function showQuestion() {
   if (questionText) questionText.textContent = q.text;
   if (optionsBox) {
     optionsBox.innerHTML = "";
-    
+
     // Check if Visual Card toggle question 6 (桌宠开启/隐藏)
     if (q.isVisualToggle) {
       const visualContainer = document.createElement("div");
       visualContainer.className = "quiz-visual-options";
-      
+
       q.options.forEach(opt => {
         const card = document.createElement("div");
         card.className = "quiz-visual-card";
-        
+
         const previewCanvas = document.createElement("canvas");
         previewCanvas.width = 75;
         previewCanvas.height = 75;
         previewCanvas.style.width = "75px";
         previewCanvas.style.height = "75px";
-        
+
         card.appendChild(previewCanvas);
-        
+
         const label = document.createElement("span");
         label.style.fontSize = "0.75rem";
         label.style.marginTop = "0.6rem";
         label.style.textAlign = "center";
         label.textContent = opt.text;
         card.appendChild(label);
-        
+
         card.onclick = () => {
           state.userProfile.quizAnswers.push(opt.type);
           currentQuestionIndex++;
           showQuestion();
         };
         visualContainer.appendChild(card);
-        
+
         // Render simple Preview Crayon Pet in Visual Cards
         setTimeout(() => {
           const ctx = previewCanvas.getContext("2d");
@@ -844,18 +879,18 @@ function skipQuiz() {
 
 function analyzeAnswers() {
   const ans = state.userProfile.quizAnswers;
-  
+
   let E_I = ans.includes("E") ? "E" : "I";
   let S_N = ans.includes("S") ? "S" : "N";
   let T_F = ans.includes("T") ? "T" : "F";
   let J_P = ans.includes("J") ? "J" : "P";
-  
+
   let problem = "A"; // Default addiction
   if (ans.includes("D")) problem = "D";
   else if (ans.includes("V")) problem = "V";
 
   state.userProfile.mbti = `${E_I}${S_N}${T_F}${J_P}-${problem}`;
-  
+
   // Set showPet option based on Visual toggle answer
   state.userProfile.showPet = !ans.includes("O");
 }
@@ -888,7 +923,7 @@ function renderColorWreath() {
   oldLeaves.forEach(el => el.remove());
 
   const radius = 88;
-  
+
   for (let i = 0; i < 12; i++) {
     const angle = i * 30;
     const angleRad = (angle - 90) * Math.PI / 180;
@@ -903,20 +938,20 @@ function renderColorWreath() {
     grad.setAttribute("y1", "100%");
     grad.setAttribute("x2", "0%");
     grad.setAttribute("y2", "0%");
-    
+
     // Dynamic stop nodes for gradient leaves
     const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
     stop1.setAttribute("offset", "0%");
     stop1.setAttribute("stop-color", `hsl(${angle}, 55%, 35%)`);
-    
+
     const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
     stop2.setAttribute("offset", "100%");
     stop2.setAttribute("stop-color", `hsl(${angle}, 75%, 60%)`);
-    
+
     grad.appendChild(stop1);
     grad.appendChild(stop2);
     defs.appendChild(grad);
-    
+
     const leafColor = `url(#${gradId})`;
     const leafGlow = `hsla(${angle}, 65%, 55%, 0.65)`;
     const leafColorBorder = `hsla(${angle}, 65%, 55%, 0.25)`;
@@ -933,7 +968,7 @@ function renderColorWreath() {
     const outerPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
     outerPath.setAttribute("d", pathD);
     outerPath.setAttribute("class", "leaf-path-outer");
-    
+
     // Inner leaf core
     const innerPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
     innerPath.setAttribute("d", pathD);
@@ -943,7 +978,7 @@ function renderColorWreath() {
 
     // Multi-vein detailed layout (加入更多的纹路)
     const veinG = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    
+
     // Main central vein
     const mainVein = document.createElementNS("http://www.w3.org/2000/svg", "line");
     mainVein.setAttribute("x1", "0");
@@ -963,7 +998,7 @@ function renderColorWreath() {
       leftVein.setAttribute("y2", yPos - 6);
       leftVein.setAttribute("class", "leaf-vein");
       leftVein.setAttribute("opacity", "0.4");
-      
+
       const rightVein = document.createElementNS("http://www.w3.org/2000/svg", "line");
       rightVein.setAttribute("x1", "0");
       rightVein.setAttribute("y1", yPos);
@@ -986,10 +1021,10 @@ function renderColorWreath() {
       const activeLeaves = wreath.querySelectorAll(".leaf-node");
       activeLeaves.forEach(node => node.classList.remove("active"));
       leafGroup.classList.add("active");
-      
+
       state.userProfile.calmingColor.h = angle;
       applyThemeColor(angle, state.userProfile.calmingColor.s, state.userProfile.calmingColor.l);
-      
+
       openWreathSlider(angle);
     });
 
@@ -1002,16 +1037,16 @@ function openWreathSlider(hue) {
   const overlay = document.getElementById("wreath-slider-overlay");
   const satSlider = document.getElementById("wreath-slider-sat");
   const lightSlider = document.getElementById("wreath-slider-light");
-  
+
   if (!overlay || !satSlider || !lightSlider) return;
-  
+
   // Set starting values from user profile
   satSlider.value = state.userProfile.calmingColor.s || 65;
   lightSlider.value = state.userProfile.calmingColor.l || 55;
-  
+
   // Display center popover
   overlay.style.display = "flex";
-  
+
   // Helper to update active SVG leaf definitions live
   const updateActiveLeaf = () => {
     const activeNode = document.querySelector(".leaf-node.active");
@@ -1028,14 +1063,14 @@ function openWreathSlider(hue) {
       }
     }
   };
-  
+
   // Handle Saturation slider inputs
   satSlider.oninput = () => {
     state.userProfile.calmingColor.s = parseInt(satSlider.value, 10);
     applyThemeColor(state.userProfile.calmingColor.h, state.userProfile.calmingColor.s, state.userProfile.calmingColor.l);
     updateActiveLeaf();
   };
-  
+
   // Handle Lightness slider inputs
   lightSlider.oninput = () => {
     state.userProfile.calmingColor.l = parseInt(lightSlider.value, 10);
@@ -1052,25 +1087,20 @@ function closeWreathSlider() {
 function completeOnboarding() {
   const motivationInput = document.getElementById("input-motivation").value.trim();
   const customQuoteInput = document.getElementById("input-custom-quote").value.trim();
-  const apiKeyInput = document.getElementById("input-api-key").value.trim();
-  const aiProxyEl = document.getElementById("input-ai-proxy");
-  const aiProxyInput = aiProxyEl ? aiProxyEl.value.trim() : "";
 
   state.userProfile.motivation = motivationInput || "逃离算法洪流，自律重生。";
   state.userProfile.customQuote = customQuoteInput || "";
-  state.userProfile.apiKey = apiKeyInput || "";
-  state.userProfile.aiProxyUrl = aiProxyInput || "";
-  
+
   // Save pet style option
   const selectedStyleEl = document.querySelector('input[name="pet-style-option"]:checked');
   state.userProfile.petStyle = selectedStyleEl ? selectedStyleEl.value : "B";
-  
+
   // Write and auto-generate smart MBTI warning templates
   generateSmartMBTIQuote();
-  
+
   saveProfile();
   localStorage.setItem(`tryrevive_active_user`, state.currentUser);
-  
+
   closeWreathSlider();
   switchView("home");
 }
@@ -1082,17 +1112,17 @@ function generateSmartMBTIQuote() {
   if (mbti.includes("TJ")) traitKey = "TJ";
   else if (mbti.includes("FJ")) traitKey = "FJ";
   else if (mbti.includes("TP")) traitKey = "TP";
-  
+
   const painKey = mbti.split("-")[1] || "A"; // Addiction/Delay/Vexation
   const list = MBTI_COACH_TEMPLATES[traitKey][painKey];
-  
+
   // Select randomized template variant (概率随机展示)
   const index = Math.floor(Math.random() * list.length);
   const rawQuote = list[index];
-  
+
   // Compile variables inside templates
   state.userProfile.motivation = state.userProfile.motivation || "专注当下，掌控自我";
-  
+
   // Save pre-computed quote back to user profile
   state.userProfile.computedQuote = rawQuote;
 }
@@ -1103,7 +1133,7 @@ function initAvatarCanvas(canvasId, stateAnimKey) {
   if (!canvas) return;
 
   const ctx = canvas.getContext("2d");
-  
+
   const resize = () => {
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
@@ -1129,18 +1159,18 @@ function initAvatarCanvas(canvasId, stateAnimKey) {
     let speed = 0.12;
     if (stateName === "black") speed = 0.05;
     else if (stateName === "white") speed = 0.18;
-    
+
     const cycle = frameCount * speed;
     let headX = x;
     let headY = y - 10;
-    
-    const headRadius = 24; 
+
+    const headRadius = 24;
     let bodyOffsetY = 0;
     let headAngle = 0;
 
     let headColor = "#ffffff";
     let bodyStrokeColor = "rgba(244, 214, 214, 0.95)";
-    
+
     // Choose colors based on state
     if (stateName === "black") {
       headColor = "#22242b"; // dirty dark gray/black
@@ -1246,11 +1276,11 @@ function initAvatarCanvas(canvasId, stateAnimKey) {
         headAngle = Math.sin(cycle) * 0.04;
 
         torsoCoords = [[x, headY + headRadius - 2], [x, y + bodyOffsetY + 18]];
-        
+
         // Arms point left-down and right-down
         leftArmCoords = [[x, y + bodyOffsetY + 4], [x - 20, y + bodyOffsetY + 14 + Math.sin(cycle)*3]];
         rightArmCoords = [[x, y + bodyOffsetY + 4], [x + 20, y + bodyOffsetY + 14 - Math.sin(cycle)*3]];
-        
+
         // Walking legs: one bent/stepping forward-down, one straight/trailing
         const walkPhase = Math.sin(cycle);
         if (walkPhase > 0) {
@@ -1283,7 +1313,7 @@ function initAvatarCanvas(canvasId, stateAnimKey) {
         const dotX = cx + Math.cos(angle) * dist;
         const dotY = cy + Math.sin(angle) * dist;
         const dotR = 0.5 + Math.random() * 1.3;
-        
+
         ctx.fillStyle = headColor;
         ctx.beginPath();
         ctx.arc(j(dotX, 0.4), j(dotY, 0.4), dotR, 0, Math.PI * 2);
@@ -1297,7 +1327,7 @@ function initAvatarCanvas(canvasId, stateAnimKey) {
         const offsetAngle = Math.random() * Math.PI * 2;
         const startDist = Math.random() * r * 0.7;
         const endDist = Math.random() * r * 0.7;
-        
+
         ctx.beginPath();
         ctx.moveTo(
           j(cx + Math.cos(offsetAngle) * startDist),
@@ -1332,12 +1362,12 @@ function initAvatarCanvas(canvasId, stateAnimKey) {
       ctx.lineWidth = 3.5;
       const sproutX = headX;
       const sproutY = headY - headRadius;
-      
+
       ctx.beginPath();
       ctx.moveTo(j(sproutX), j(sproutY));
       ctx.quadraticCurveTo(j(sproutX), j(sproutY - 8), j(sproutX + Math.sin(cycle)*3), j(sproutY - 12));
       ctx.stroke();
-      
+
       ctx.fillStyle = "#34d399";
       ctx.beginPath();
       ctx.ellipse(j(sproutX - 4 + Math.sin(cycle)*3), j(sproutY - 12), j(4, 0.2), j(2, 0.2), -Math.PI/6, 0, Math.PI * 2);
@@ -1348,19 +1378,19 @@ function initAvatarCanvas(canvasId, stateAnimKey) {
     // DRAW WATER-COLOR PASTEL PINK BODY AND LIMBS (Scribble texture)
     const drawCrayonStroke = (coords, thickness) => {
       if (coords.length < 2) return;
-      
+
       ctx.save();
       ctx.strokeStyle = bodyStrokeColor;
-      
+
       // Draw 3 layers of slightly offset lines to simulate thick textured brush strokes
       for (let layer = 0; layer < 3; layer++) {
         ctx.lineWidth = thickness - layer * 1.5;
         ctx.globalAlpha = 0.85 - layer * 0.15;
-        
+
         ctx.beginPath();
         const dx = (Math.random() - 0.5) * 1.2;
         const dy = (Math.random() - 0.5) * 1.2;
-        
+
         ctx.moveTo(j(coords[0][0] + dx), j(coords[0][1] + dy));
         for (let i = 1; i < coords.length; i++) {
           ctx.lineTo(j(coords[i][0] + dx), j(coords[i][1] + dy));
@@ -1385,7 +1415,7 @@ function initAvatarCanvas(canvasId, stateAnimKey) {
     const shadowSize = stateName === "black" ? 42 : (stateName === "white" ? 28 : 34);
     ctx.ellipse(x, y + 42, shadowSize, 6, 0, 0, Math.PI * 2);
     ctx.fill();
-    
+
     ctx.filter = "none";
   }
 
@@ -1488,7 +1518,7 @@ class SproutStem {
     this.age = 0;
     this.maxAge = 450 + Math.random() * 350; // Lives for ~8-12 seconds
   }
-  
+
   update() {
     this.age++;
     if (this.state === 'growing') {
@@ -1501,48 +1531,48 @@ class SproutStem {
       this.opacity -= 0.015;
     }
   }
-  
+
   draw(ctx, windAngle, windForce) {
     if (this.opacity <= 0) return;
-    
+
     let ratio = this.state === 'growing' ? (this.currentLen / this.targetLen) : 1.0;
     let sx = this.endX;
     let sy = this.endY;
     if (this.state === 'swaying') {
       sx += Math.cos(windAngle) * windForce * 3.5;
     }
-    
+
     ctx.save();
     ctx.globalAlpha = this.opacity;
-    
+
     // Draw stem curves using Bezier
     ctx.beginPath();
     ctx.strokeStyle = 'rgba(74, 187, 124, 0.6)';
     ctx.lineWidth = 1.35;
     ctx.lineCap = 'round';
-    
+
     let cx = this.x + this.ctrlX * ratio;
     let cy = this.y + this.ctrlY * ratio;
     let ex = this.x + sx * ratio;
     let ey = this.y + sy * ratio;
-    
+
     ctx.moveTo(this.x, this.y);
     ctx.quadraticCurveTo(cx, cy, ex, ey);
     ctx.stroke();
-    
+
     // Draw Leaf at the tip
     if (ratio >= 1.0) {
       ctx.save();
       ctx.translate(this.x + sx, this.y + ey);
-      
+
       let leafRot = Math.sin(Date.now() * 0.0025 + this.x) * 0.15;
       ctx.rotate(leafRot);
-      
+
       ctx.fillStyle = 'rgba(34, 197, 94, 0.85)';
       ctx.beginPath();
       ctx.ellipse(0, 0, this.leafSize * 1.35, this.leafSize * 0.7, 0, 0, Math.PI * 2);
       ctx.fill();
-      
+
       if (this.flowerSpawned) {
         ctx.fillStyle = '#FBBF24'; // Golden flower
         ctx.beginPath();
@@ -1551,7 +1581,7 @@ class SproutStem {
       }
       ctx.restore();
     }
-    
+
     ctx.restore();
   }
 }
@@ -1565,7 +1595,7 @@ function initNarrativeSproutCanvas() {
 
   const ctx = canvas.getContext("2d");
   sproutStems = [];
-  
+
   const resizeCanvas = () => {
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width;
@@ -1579,14 +1609,14 @@ function initNarrativeSproutCanvas() {
     sproutMouseBind = true;
     container.addEventListener("mousemove", (e) => {
       if (state.activeView !== "narrative") return;
-      
+
       // Check if mouse is hovering over a narrative paragraph
       const target = e.target;
       if (target && target.classList.contains("narrative-line")) {
         const rect = canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
-        
+
         // Prevent spawning too many overlapping stems
         if (Math.random() < 0.22) {
           let tooCluttered = false;
@@ -1595,7 +1625,7 @@ function initNarrativeSproutCanvas() {
               tooCluttered = true;
             }
           });
-          
+
           if (!tooCluttered && sproutStems.length < 120) {
             sproutStems.push(new SproutStem(mouseX, mouseY));
           }
@@ -1606,12 +1636,12 @@ function initNarrativeSproutCanvas() {
 
   function animate() {
     if (state.activeView !== "narrative") return;
-    
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     let windAngle = Date.now() * 0.0025;
     let windForce = 0.6 + Math.sin(Date.now() * 0.001) * 0.3;
-    
+
     // Update and draw stems
     for (let i = sproutStems.length - 1; i >= 0; i--) {
       const stem = sproutStems[i];
@@ -1621,10 +1651,10 @@ function initNarrativeSproutCanvas() {
         sproutStems.splice(i, 1);
       }
     }
-    
+
     state.canvasAnimIds.sprout = requestAnimationFrame(animate);
   }
-  
+
   animate();
 }
 
@@ -1634,7 +1664,7 @@ function initGalaxyCanvas() {
   if (!canvas) return;
 
   const ctx = canvas.getContext("2d");
-  
+
   const resizeCanvas = () => {
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
@@ -1647,10 +1677,10 @@ function initGalaxyCanvas() {
   const starCount = 65;
   const stars = [];
   const meteors = [];
-  
+
   const calmingH = state.userProfile.calmingColor.h;
   const calmingS = state.userProfile.calmingColor.s;
-  
+
   for (let i = 0; i < starCount; i++) {
     stars.push({
       x: Math.random(),
@@ -1689,21 +1719,21 @@ function initGalaxyCanvas() {
       width / 2, height / 2, 10,
       width / 2, height / 2, Math.max(width, height) * 0.8
     );
-    
+
     const progress = 1.0 - (state.timeLeft / state.meditationTotalTime);
-    
+
     const baseH = calmingH;
     const baseS = Math.round(calmingS * (0.15 + 0.35 * progress));
     const baseL = Math.round(3 + 5 * progress);
-    
+
     const bgStart = `hsl(${baseH}, ${baseS}%, ${baseL}%)`;
     const bgMid = `hsl(${(baseH + 15) % 360}, ${baseS * 0.8}%, ${baseL - 1}%)`;
     const bgEnd = `hsl(${(baseH + 40) % 360}, ${baseS * 0.5}%, 1%)`;
-    
+
     gradient.addColorStop(0, bgStart);
     gradient.addColorStop(0.5, bgMid);
     gradient.addColorStop(1, bgEnd);
-    
+
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 
@@ -1729,10 +1759,10 @@ function initGalaxyCanvas() {
       let alpha = 0.075 - l * 0.022;
       let scaleFactor = 1.0 + l * 0.28;
       let rad = baseR * scaleFactor;
-      
+
       ctx.fillStyle = `hsla(${calmingH}, ${calmingS}%, ${state.userProfile.calmingColor.l}%, ${alpha})`;
       ctx.beginPath();
-      
+
       const steps = 72;
       for (let sIdx = 0; sIdx <= steps; sIdx++) {
         let angle = (sIdx / steps) * Math.PI * 2;
@@ -1758,7 +1788,7 @@ function initGalaxyCanvas() {
       const star = stars[i];
       star.phase += star.pulseSpeed * (1.0 + progress * 0.5);
       const alpha = (0.2 + 0.2 * progress) + (Math.sin(star.phase) + 1) * (0.25 + 0.15 * progress);
-      
+
       const starH = baseH + star.hOffset;
       ctx.fillStyle = `hsla(${starH}, ${calmingS}%, 90%, ${alpha})`;
       ctx.beginPath();
@@ -1782,12 +1812,12 @@ function initGalaxyCanvas() {
       const screenY = m.y * height;
       const tailX = screenX - Math.cos(m.angle) * m.length;
       const tailY = screenY - Math.sin(m.angle) * m.length;
-      
+
       const mGradient = ctx.createLinearGradient(screenX, screenY, tailX, tailY);
       mGradient.addColorStop(0, `rgba(255, 255, 255, ${m.opacity})`);
       mGradient.addColorStop(0.3, `hsla(${baseH}, ${calmingS}%, 75%, ${m.opacity * 0.7})`);
       mGradient.addColorStop(1, `hsla(${(baseH + 30) % 360}, ${calmingS}%, 45%, 0)`);
-      
+
       ctx.strokeStyle = mGradient;
       ctx.lineWidth = m.width;
       ctx.lineCap = "round";
@@ -1813,9 +1843,9 @@ const cloudBubbles = [];
 function initCloudBubbleCanvas() {
   const canvas = document.getElementById("cloud-bubble-canvas");
   if (!canvas) return;
-  
+
   const ctx = canvas.getContext("2d");
-  
+
   const resize = () => {
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
@@ -1837,7 +1867,7 @@ function initCloudBubbleCanvas() {
       radiusOffsets: Array.from({ length: 8 }, () => (Math.random() - 0.5) * 15)
     });
   }
-  
+
   // 预渲染一张柔光云朵精灵（含安抚色），每帧只 drawImage，省掉逐帧 blur(24px)
   const SPRITE_R = 160;
   const cloudSprite = document.createElement("canvas");
@@ -1864,28 +1894,28 @@ function initCloudBubbleCanvas() {
     const drawSize = c.baseRadius * 1.6 * 2 * breathe;
     ctx.drawImage(cloudSprite, c.x - drawSize / 2, c.y - drawSize / 2, drawSize, drawSize);
   }
-  
+
   function animate() {
     if (state.activeView !== "meditation") return;
-    
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     cloudBubbles.forEach(c => {
       c.y += c.vy;
       c.phase += c.phaseSpeed;
-      
+
       // Loop back to bottom
       if (c.y < -150) {
         c.y = canvas.height + 150;
         c.x = Math.random() * canvas.width;
       }
-      
+
       drawCloud(c);
     });
-    
+
     state.canvasAnimIds.cloudBubble = requestAnimationFrame(animate);
   }
-  
+
   animate();
 }
 
@@ -1994,23 +2024,23 @@ function startThoughtBubblesSpawner() {
 function startMeditationSession(durationSeconds) {
   const setupOverlay = document.getElementById("meditation-setup-overlay");
   const setupInput = document.getElementById("meditation-setup-quote");
-  
+
   // Save custom heart quote updates instantly
   if (setupInput) {
     state.userProfile.customQuote = setupInput.value.trim();
     saveProfile();
   }
-  
+
   if (setupOverlay) setupOverlay.style.display = "none";
-  
+
   state.meditationActive = true;
   state.meditationTotalTime = durationSeconds;
   state.timeLeft = durationSeconds;
-  
+
   updateTimerDisplay();
-  
+
   setAvatarState("gray");
-  
+
   state.timerInterval = setInterval(() => {
     state.timeLeft--;
     updateTimerDisplay();
@@ -2040,7 +2070,7 @@ function updateTimerDisplay() {
 function showWakeupModal() {
   const modal = document.getElementById("wakeup-dialog");
   const motivationTextEl = document.getElementById("wakeup-motivation-text");
-  
+
   if (motivationTextEl) {
     motivationTextEl.textContent = "🔍 AI 正在生成你的禅想自省心语...";
   }
@@ -2065,10 +2095,10 @@ function exitMeditationCleanly() {
   if (breathInterval) clearInterval(breathInterval);
   if (bubbleInterval) clearInterval(bubbleInterval);
   stopOceanWaves();
-  
+
   const setupOverlay = document.getElementById("meditation-setup-overlay");
   if (setupOverlay) setupOverlay.style.display = "none";
-  
+
   switchView("home");
 }
 
@@ -2102,10 +2132,10 @@ let narrativeTimeout = null;
 
 function runNarrativeIntro() {
   let lineIdx = 0;
-  
+
   function showNextLine() {
     if (state.activeView !== "narrative") return;
-    
+
     if (lineIdx >= NARRATIVE_LINES.length) {
       const footer = document.getElementById("narrative-footer");
       if (footer) footer.style.opacity = "1";
@@ -2126,7 +2156,7 @@ function runNarrativeIntro() {
 
     const duration = lineIdx % 2 === 0 ? 2500 : 1500;
     lineIdx++;
-    
+
     narrativeTimeout = setTimeout(showNextLine, duration);
   }
 
@@ -2135,7 +2165,7 @@ function runNarrativeIntro() {
 
 function skipNarrative() {
   if (narrativeTimeout) clearTimeout(narrativeTimeout);
-  
+
   NARRATIVE_LINES.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
@@ -2151,13 +2181,13 @@ function skipNarrative() {
 function renderAppDock() {
   const grid = document.getElementById("app-dock-grid");
   if (!grid) return;
-  
+
   grid.innerHTML = "";
-  
+
   state.userProfile.appDock.forEach((app, idx) => {
     const item = document.createElement("div");
     item.className = `dock-app-item ${state.dockEditMode ? "edit-mode" : ""}`;
-    
+
     // 优先使用内置品牌 SVG 图标；匹配不到时回退为首两字文字图标
     const brand = resolveBrandIcon(app);
     // 仅允许安全的颜色字符串（hex / hsl / rgb），否则回退到主题色，避免 style 注入
@@ -2208,10 +2238,10 @@ function renderAppDock() {
       if (state.dockEditMode) return;
       triggerShortcutRedirect(app.name, app.url);
     };
-    
+
     grid.appendChild(item);
   });
-  
+
   // Plus Add Custom App icon at the end
   const plusItem = document.createElement("div");
   plusItem.className = "dock-app-item";
@@ -2235,7 +2265,7 @@ function toggleDockEditMode() {
     editBtn.innerHTML = state.dockEditMode ? "<span>完成</span>" : "<span>编辑</span>";
   }
   renderAppDock();
-  
+
   // Save state if saved exit
   if (!state.dockEditMode) {
     saveProfile();
@@ -2251,15 +2281,15 @@ function moveDockApp(id, direction) {
   const list = state.userProfile.appDock;
   const index = list.findIndex(app => app.id === id);
   if (index === -1) return;
-  
+
   const targetIndex = index + direction;
   if (targetIndex < 0 || targetIndex >= list.length) return;
-  
+
   // Swap indices
   const temp = list[index];
   list[index] = list[targetIndex];
   list[targetIndex] = temp;
-  
+
   renderAppDock();
 }
 
@@ -2273,47 +2303,79 @@ function fillPresetApp(name, url) {
 function saveCustomApp() {
   const nameInput = document.getElementById("custom-app-name");
   const urlInput = document.getElementById("custom-app-url");
-  
+
   if (!nameInput || !urlInput) return;
-  
+
   const name = nameInput.value.trim();
   let url = urlInput.value.trim();
-  
+
   if (!name || !url) {
     alert("请输入名称和有效网址。");
     return;
   }
-  
+
   // 站内相对路径（如 lanshi/index.html）保持原样，其余补全 https:// 前缀
   if (!url.startsWith("http") && !isInternalUrl(url)) {
     url = "https://" + url;
   }
 
   const newId = `custom_${Date.now()}`;
-  
+
   // Generate random pleasant theme color stop
   const randomHue = Math.floor(Math.random() * 360);
   const color = `hsl(${randomHue}, 65%, 45%)`;
-  
+
   state.userProfile.appDock.push({
     id: newId,
     name,
     url,
     color
   });
-  
+
   // Clear fields and close
   nameInput.value = "";
   urlInput.value = "";
   document.getElementById("add-app-modal").classList.remove("active");
-  
+
   // Save profile and reload DOCK
   saveProfile();
   renderAppDock();
 }
 
 // --- 17. Dual-Loop Blocker (Link Interception & Time Limits) ---
-function triggerShortcutRedirect(siteName, targetUrl) {
+const PLATFORM_DIRECT_SEARCH = {
+  "小红书": query => `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(query)}`,
+  "B站": query => `https://search.bilibili.com/all?keyword=${encodeURIComponent(query)}`,
+  "抖音": query => `https://www.douyin.com/search/${encodeURIComponent(query)}`,
+  "微博": query => `https://s.weibo.com/weibo?q=${encodeURIComponent(query)}`,
+  "知乎": query => `https://www.zhihu.com/search?type=content&q=${encodeURIComponent(query)}`,
+  "网易云音乐": query => `https://music.163.com/#/search/m/?s=${encodeURIComponent(query)}`
+};
+
+function normalizeEstimatedMinutes(value, fallback = 0) {
+  const parsed = Math.round(Number(value));
+  return Number.isFinite(parsed) ? Math.min(240, Math.max(0, parsed)) : fallback;
+}
+
+function getPlanTotalMinutes() {
+  return normalizeEstimatedMinutes(state.userProfile.step1Minutes, 0)
+    + normalizeEstimatedMinutes(state.userProfile.step2Minutes, 0)
+    + normalizeEstimatedMinutes(state.userProfile.step3Minutes, 0);
+}
+
+function syncInterceptTotalMinutes() {
+  const durationInput = document.getElementById("intercept-duration");
+  const minuteInputs = [
+    document.getElementById("intercept-step1-minutes"),
+    document.getElementById("intercept-step2-minutes"),
+    document.getElementById("intercept-step3-minutes")
+  ];
+  const total = minuteInputs.reduce((sum, input) => sum + normalizeEstimatedMinutes(input ? input.value : 0, 0), 0);
+  if (durationInput) durationInput.value = total;
+  return total;
+}
+
+function triggerShortcutRedirect(siteName, targetUrl, searchQuery = "") {
   // 站内应用（烂开始等）是「盟友」而非推荐流，直接跳转、不弹注意力拦截窗
   if (isInternalUrl(targetUrl)) {
     openExternal(targetUrl);
@@ -2322,16 +2384,39 @@ function triggerShortcutRedirect(siteName, targetUrl) {
 
   state.blockerTargetSite = siteName;
   state.blockerTargetUrl = targetUrl;
-  
+  state.blockerSearchQuery = searchQuery;
+
   const modal = document.getElementById("link-intercept-modal");
   const siteNameEl = document.getElementById("intercept-site-name");
   if (siteNameEl) siteNameEl.textContent = siteName;
-  
+
+  const searchGroup = document.getElementById("intercept-search-group");
+  const searchSite = document.getElementById("intercept-search-site");
+  const searchQueryInput = document.getElementById("intercept-search-query");
+  const supportsDirectSearch = !!PLATFORM_DIRECT_SEARCH[siteName];
+  if (searchGroup) searchGroup.hidden = !supportsDirectSearch;
+  if (searchSite) searchSite.textContent = siteName;
+  if (searchQueryInput) {
+    searchQueryInput.value = supportsDirectSearch
+      ? (searchQuery || state.userProfile.firstStep || "")
+      : "";
+  }
+
   const step2Input = document.getElementById("intercept-step2");
   const step3Input = document.getElementById("intercept-step3");
+  const step1Input = document.getElementById("intercept-step1");
+  const step1MinutesInput = document.getElementById("intercept-step1-minutes");
+  const step2MinutesInput = document.getElementById("intercept-step2-minutes");
+  const step3MinutesInput = document.getElementById("intercept-step3-minutes");
+  const durationInput = document.getElementById("intercept-duration");
+  if (step1Input) step1Input.value = state.userProfile.firstStep || "";
   if (step2Input) step2Input.value = state.userProfile.step2 || "";
   if (step3Input) step3Input.value = state.userProfile.step3 || "";
-  
+  if (step1MinutesInput) step1MinutesInput.value = normalizeEstimatedMinutes(state.userProfile.step1Minutes, 0);
+  if (step2MinutesInput) step2MinutesInput.value = normalizeEstimatedMinutes(state.userProfile.step2Minutes, 0);
+  if (step3MinutesInput) step3MinutesInput.value = normalizeEstimatedMinutes(state.userProfile.step3Minutes, 0);
+  if (durationInput) durationInput.value = getPlanTotalMinutes();
+
   if (modal) modal.classList.add("active");
 }
 
@@ -2347,8 +2432,8 @@ function isInternalUrl(rawUrl) {
   return /^(\.\/)?lanshi\/[\w./-]*\.html?([?#][\w./?=&%-]*)?$/i.test((rawUrl || "").trim());
 }
 
-// 可靠地在新标签打开外部网址：在用户手势内用 <a target="_blank"> 触发，
-// 比 window.open 更不易被弹窗拦截器拦截；只放行 http/https 协议。
+// 外部网址在当前标签打开，让没有安装扩展的普通浏览器也能通过原生返回键
+// 回到 Tryrevive。站内子应用仍使用新标签，保留主应用状态。
 function openExternal(rawUrl) {
   let url = (rawUrl || "").trim();
   // 站内页面（烂开始等）直接新标签打开，保留主应用状态
@@ -2370,39 +2455,62 @@ function openExternal(rawUrl) {
     alert("网址无效，无法跳转：" + rawUrl);
     return false;
   }
-  const a = document.createElement("a");
-  a.href = url;
-  a.target = "_blank";
-  a.rel = "noopener noreferrer";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  sessionStorage.setItem("tryrevive_return_pending", "1");
+  window.location.assign(url);
   return true;
 }
 
 function confirmRedirect() {
   const selectEl = document.getElementById("intercept-duration");
+  const searchQueryInput = document.getElementById("intercept-search-query");
+  const step1Input = document.getElementById("intercept-step1");
   const step2Input = document.getElementById("intercept-step2");
   const step3Input = document.getElementById("intercept-step3");
-  
-  const minutes = selectEl ? parseInt(selectEl.value, 10) : 10;
-  
+  const step1MinutesInput = document.getElementById("intercept-step1-minutes");
+  const step2MinutesInput = document.getElementById("intercept-step2-minutes");
+  const step3MinutesInput = document.getElementById("intercept-step3-minutes");
+
+  const totalMinutes = [step1MinutesInput, step2MinutesInput, step3MinutesInput]
+    .reduce((sum, input) => sum + normalizeEstimatedMinutes(input ? input.value : 0, 0), 0);
+  const firstStepMinutes = normalizeEstimatedMinutes(
+    step1MinutesInput ? step1MinutesInput.value : 0,
+    0
+  );
+  if (selectEl) selectEl.value = totalMinutes;
+
+  state.userProfile.firstStep = step1Input ? step1Input.value.trim() : state.userProfile.firstStep;
   state.userProfile.step2 = step2Input ? step2Input.value.trim() : "";
   state.userProfile.step3 = step3Input ? step3Input.value.trim() : "";
-  
+  state.userProfile.step1Minutes = normalizeEstimatedMinutes(step1MinutesInput ? step1MinutesInput.value : 0, 0);
+  state.userProfile.step2Minutes = normalizeEstimatedMinutes(step2MinutesInput ? step2MinutesInput.value : 0, 0);
+  state.userProfile.step3Minutes = normalizeEstimatedMinutes(step3MinutesInput ? step3MinutesInput.value : 0, 0);
+  state.userProfile.planTimeSource = "manual";
+
+  const searchBuilder = PLATFORM_DIRECT_SEARCH[state.blockerTargetSite];
+  // “直接开始第一步”会把第一步任务作为平台搜索词；若第一步为空，
+  // 再回退到用户手动填写的关键词、首页搜索词或旧版第二步输入。
+  const firstStepQuery = step1Input ? step1Input.value.trim() : "";
+  const explicitQuery = searchQueryInput ? searchQueryInput.value.trim() : "";
+  const fallbackQuery = step2Input ? step2Input.value.trim() : "";
+  const searchQuery = firstStepQuery || explicitQuery || state.blockerSearchQuery || fallbackQuery;
+  const destinationUrl = searchBuilder && searchQuery
+    ? searchBuilder(searchQuery)
+    : state.blockerTargetUrl;
+
   saveProfile();
-  
-  state.blockerTimeLimitSec = minutes * 60;
+
+  state.blockerTimeLimitSec = firstStepMinutes * 60;
   state.blockerStartTime = Date.now();
-  state.blockerTimerActive = true;
-  
+  state.blockerTimerActive = firstStepMinutes > 0;
+
   cancelRedirect();
 
-  // 在新标签打开目标站点（Tryrevive 保留在原标签继续计时与回访检测）
-  openExternal(state.blockerTargetUrl);
+  // 普通浏览器在当前标签打开，保留浏览器原生返回路径；安装扩展时，
+  // 外部页面还会显示“返回 Tryrevive”悬浮按钮。
+  openExternal(destinationUrl);
 
   setAvatarState("black");
-  
+
   // Update UI steps
   const stepsDisplay = document.getElementById("goal-plan-steps-display");
   const step2El = document.getElementById("display-step-2");
@@ -2410,11 +2518,11 @@ function confirmRedirect() {
   if (stepsDisplay) stepsDisplay.style.display = "block";
   if (step2El) step2El.textContent = state.userProfile.step2 || "未计划";
   if (step3El) step3El.textContent = state.userProfile.step3 || "未计划";
-  
+
   // Save pre-computed smart warnings quotes instantly (Bugfix: pre-generate warning quotes)
   generateSmartMBTIQuote();
   saveProfile();
-  
+
   if (state.blockerInterval) clearInterval(state.blockerInterval);
   state.blockerInterval = setInterval(checkBlockerCountdown, 1000);
 }
@@ -2424,10 +2532,10 @@ function checkBlockerCountdown() {
     clearInterval(state.blockerInterval);
     return;
   }
-  
+
   const elapsedSec = Math.floor((Date.now() - state.blockerStartTime) / 1000);
   const timeLeftSec = state.blockerTimeLimitSec - elapsedSec;
-  
+
   if (timeLeftSec <= 0) {
     document.title = `⏰【超时】${Math.abs(Math.floor(timeLeftSec / 60))}分${Math.abs(timeLeftSec % 60)}秒!`;
     if (!heartbeatInterval) {
@@ -2445,7 +2553,7 @@ function extendFocusTimer(seconds) {
     state.blockerTimeLimitSec += seconds;
     stopHeartbeatLoop();
     document.title = "Tryrevive - 夺回你的注意力主权";
-    
+
     const overlay = document.getElementById("alert-blocking");
     if (overlay) overlay.classList.remove("active");
   }
@@ -2454,13 +2562,13 @@ function extendFocusTimer(seconds) {
 function enterMeditationFromBlocker() {
   const overlay = document.getElementById("alert-blocking");
   if (overlay) overlay.classList.remove("active");
-  
+
   stopHeartbeatLoop();
   document.title = "Tryrevive - 夺回你的注意力主权";
-  
+
   state.blockerTimerActive = false;
   if (state.blockerInterval) clearInterval(state.blockerInterval);
-  
+
   switchView("meditation");
 }
 
@@ -2469,7 +2577,7 @@ function initFocusMonitor() {
     if (state.blockerTimerActive) {
       const elapsedSec = Math.floor((Date.now() - state.blockerStartTime) / 1000);
       const isOvertime = elapsedSec > state.blockerTimeLimitSec;
-      
+
       if (isOvertime) {
         triggerBlockerWarning(elapsedSec - state.blockerTimeLimitSec);
       }
@@ -2490,11 +2598,18 @@ function compileQuoteText(rawText) {
 function syncWarningMotivationalDOM() {
   const goalInput = document.getElementById("goal-first-step-input");
   if (goalInput) goalInput.value = state.userProfile.firstStep || "";
-  
+
   const stepsDisplay = document.getElementById("goal-plan-steps-display");
   const step2El = document.getElementById("display-step-2");
   const step3El = document.getElementById("display-step-3");
-  
+  const step1TimeEl = document.getElementById("display-step-1-time");
+  const step2TimeEl = document.getElementById("display-step-2-time");
+  const step3TimeEl = document.getElementById("display-step-3-time");
+
+  if (step1TimeEl) step1TimeEl.textContent = `${normalizeEstimatedMinutes(state.userProfile.step1Minutes, 0)} 分钟`;
+  if (step2TimeEl) step2TimeEl.textContent = `${normalizeEstimatedMinutes(state.userProfile.step2Minutes, 0)} 分钟`;
+  if (step3TimeEl) step3TimeEl.textContent = `${normalizeEstimatedMinutes(state.userProfile.step3Minutes, 0)} 分钟`;
+
   if (state.userProfile.step2 || state.userProfile.step3) {
     if (stepsDisplay) stepsDisplay.style.display = "block";
     if (step2El) step2El.textContent = state.userProfile.step2 || "未计划";
@@ -2523,58 +2638,132 @@ function syncWarningMotivationalDOM() {
   }
 }
 
-// --- 17a. Claude AI 客户端（统一入口） ---
-// 优先走 Cloudflare Worker 代理（Key 藏在服务端，安全）；
-// 未配置代理时，回退到用户本地填写的 API Key 直连。
-const AI_PROXY_URL = ""; // Worker 部署后填入，如 "https://tryrevive-ai.xxx.workers.dev"
+// --- 可拖动桌宠：鼠标与触摸统一使用 Pointer Events，并记住上次位置 ---
+const DESK_PET_POSITION_KEY = "tryrevive_desk_pet_position_v1";
 
-// 代理地址优先级：用户在「设置偏好」里填的 > 代码里写死的常量
-function getAIProxyUrl() {
-  return (state.userProfile.aiProxyUrl || AI_PROXY_URL || "").trim().replace(/\/+$/, "");
+function clampDeskPetPosition(left, top, pet) {
+  const edgeGap = 8;
+  const width = pet.offsetWidth || 100;
+  const height = pet.offsetHeight || 100;
+  return {
+    left: Math.min(Math.max(edgeGap, left), Math.max(edgeGap, window.innerWidth - width - edgeGap)),
+    top: Math.min(Math.max(edgeGap, top), Math.max(edgeGap, window.innerHeight - height - edgeGap))
+  };
 }
 
-async function callClaude({ system, messages, model, maxTokens }) {
+function placeDeskPet(pet, left, top) {
+  const position = clampDeskPetPosition(left, top, pet);
+  pet.style.left = `${position.left}px`;
+  pet.style.top = `${position.top}px`;
+  pet.style.right = "auto";
+  pet.style.bottom = "auto";
+  return position;
+}
+
+function restoreDeskPetPosition(pet) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DESK_PET_POSITION_KEY) || "null");
+    if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
+      placeDeskPet(pet, saved.left, saved.top);
+    }
+  } catch (error) {
+    console.warn("Desk pet position could not be restored:", error);
+  }
+}
+
+function initDraggableDeskPet() {
+  const pet = document.getElementById("desk-pet-container");
+  if (!pet || pet.dataset.dragReady === "true") return;
+  // .view-screen 使用 transform 做页面切换动画。任何 transformed ancestor
+  // 都会让 position: fixed 改为相对该容器定位，在宽屏浏览器中导致桌宠越界，
+  // 并撑出横向滚动条。挂到 body 后才能真正相对浏览器视口定位。
+  if (pet.parentElement !== document.body) document.body.appendChild(pet);
+  pet.dataset.dragReady = "true";
+  restoreDeskPetPosition(pet);
+
+  let drag = null;
+
+  pet.addEventListener("pointerdown", event => {
+    if (event.button !== 0 || event.target.closest("button")) return;
+    const rect = pet.getBoundingClientRect();
+    drag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: rect.left,
+      top: rect.top,
+      moved: false
+    };
+    pet.setPointerCapture(event.pointerId);
+    pet.classList.add("is-dragging");
+  });
+
+  pet.addEventListener("pointermove", event => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(deltaX, deltaY) < 4) return;
+    drag.moved = true;
+    event.preventDefault();
+    placeDeskPet(pet, drag.left + deltaX, drag.top + deltaY);
+  });
+
+  const finishDrag = event => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    if (pet.hasPointerCapture(event.pointerId)) pet.releasePointerCapture(event.pointerId);
+    if (drag.moved) {
+      const rect = pet.getBoundingClientRect();
+      const position = placeDeskPet(pet, rect.left, rect.top);
+      localStorage.setItem(DESK_PET_POSITION_KEY, JSON.stringify(position));
+    }
+    pet.classList.remove("is-dragging");
+    drag = null;
+  };
+
+  pet.addEventListener("pointerup", finishDrag);
+  pet.addEventListener("pointercancel", finishDrag);
+  window.addEventListener("resize", () => {
+    if (pet.style.left && pet.style.top) {
+      const rect = pet.getBoundingClientRect();
+      const position = placeDeskPet(pet, rect.left, rect.top);
+      localStorage.setItem(DESK_PET_POSITION_KEY, JSON.stringify(position));
+    }
+  });
+}
+
+// --- 17a. DeepSeek AI 客户端（统一入口） ---
+// 用户端永远不接触 API Key；所有请求固定经过 Tryrevive Cloudflare Worker。
+const AI_PROXY_URL = "https://tryrevive-ai-deepseek.tryrevive-deepseek.workers.dev";
+
+function getAIProxyUrl() {
+  return AI_PROXY_URL;
+}
+
+async function callClaude({ system, messages, model, maxTokens, responseFormat }) {
   const payload = {
-    model: model || "claude-sonnet-5",
+    model: model || "deepseek-chat",
     max_tokens: maxTokens || 512,
     system: system,
     messages: messages
   };
-
-  const proxyUrl = getAIProxyUrl();
-  if (proxyUrl) {
-    const resp = await fetch(proxyUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    if (!resp.ok) throw new Error(`proxy HTTP ${resp.status}`);
-    const data = await resp.json();
-    if (data && data.content && data.content[0] && data.content[0].text) {
-      return data.content[0].text.trim();
-    }
-    throw new Error(data.error || "invalid proxy response");
+  if (responseFormat === "json_object") {
+    payload.response_format = { type: "json_object" };
   }
 
-  const apiKey = state.userProfile.apiKey;
-  if (!apiKey) throw new Error("no proxy & no api key");
-
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+  const resp = await fetch(getAIProxyUrl(), {
     method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-      "anthropic-dangerous-direct-browser-access": "true"
-    },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify(payload)
   });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const data = await resp.json();
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const detail = data.detail || data.error || `HTTP ${resp.status}`;
+    throw new Error(`proxy HTTP ${resp.status}: ${detail}`);
+  }
   if (data && data.content && data.content[0] && data.content[0].text) {
     return data.content[0].text.trim();
   }
-  throw new Error("invalid API response");
+  throw new Error(data.error || "invalid proxy response");
 }
 
 async function fetchAICoachFeedback(promptType, callback) {
@@ -2590,7 +2779,7 @@ async function fetchAICoachFeedback(promptType, callback) {
     const text = await callClaude({
       system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
-      model: "claude-haiku-4-5-20251001",
+      model: "deepseek-chat",
       maxTokens: 120
     });
     callback(text);
@@ -2663,7 +2852,7 @@ async function sendAIChat() {
     const reply = await callClaude({
       system: systemPrompt,
       messages: recentMessages,
-      model: "claude-sonnet-5",
+      model: "deepseek-chat",
       maxTokens: 300
     });
     thinking.textContent = reply;
@@ -2676,17 +2865,156 @@ async function sendAIChat() {
   }
 }
 
+function parsePlanJson(rawText) {
+  const text = String(rawText || "").trim();
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const source = fenced ? fenced[1].trim() : text;
+  const objectMatch = source.match(/\{[\s\S]*\}/);
+  if (!objectMatch) throw new Error("plan_format_invalid: JSON object missing");
+
+  let data;
+  try {
+    data = JSON.parse(objectMatch[0]);
+  } catch (error) {
+    throw new Error(`plan_format_invalid: ${error.message}`);
+  }
+  const steps = Array.isArray(data.steps) ? data.steps : [];
+  const defaultMinutes = [0, 0, 0];
+  const normalizedSteps = steps
+    .map((step, index) => {
+      if (typeof step === "string") {
+        return { text: step.trim(), minutes: defaultMinutes[index] || 0 };
+      }
+      return {
+        text: String(step && (step.text || step.task) || "").trim(),
+        minutes: normalizeEstimatedMinutes(step && step.minutes, defaultMinutes[index] || 0)
+      };
+    })
+    .filter(step => step.text)
+    .slice(0, 3);
+  if (normalizedSteps.length !== 3) throw new Error("plan_format_invalid: three plan steps required");
+  if (normalizedSteps.some(step => step.minutes <= 0)) throw new Error("plan_format_invalid: estimated minutes required for every step");
+
+  return {
+    goal: String(data.goal || "").trim(),
+    steps: normalizedSteps
+  };
+}
+
+async function requestGeneratedPlan(planningPrompt, messages) {
+  const response = await callClaude({
+    system: planningPrompt,
+    messages,
+    model: "deepseek-chat",
+    maxTokens: 260,
+    responseFormat: "json_object"
+  });
+
+  try {
+    return parsePlanJson(response);
+  } catch (firstError) {
+    console.warn("AI returned an invalid plan; attempting one repair:", firstError, response);
+    const repairPrompt = `${planningPrompt}\n你正在修复一次格式错误。必须输出一个合法、完整的 JSON 对象，且只能包含 goal 和 steps 字段。`;
+    const repairedResponse = await callClaude({
+      system: repairPrompt,
+      messages: [{
+        role: "user",
+        content: `请把下面的内容修复为指定的三步计划 JSON。不要解释，也不要遗漏 minutes：\n${response}`
+      }],
+      model: "deepseek-chat",
+      maxTokens: 260,
+      responseFormat: "json_object"
+    });
+    return parsePlanJson(repairedResponse);
+  }
+}
+
+function applyGeneratedPlan(plan) {
+  state.userProfile.firstStep = plan.steps[0].text;
+  state.userProfile.step1Minutes = plan.steps[0].minutes;
+  state.userProfile.step2 = plan.steps[1].text;
+  state.userProfile.step2Minutes = plan.steps[1].minutes;
+  state.userProfile.step3 = plan.steps[2].text;
+  state.userProfile.step3Minutes = plan.steps[2].minutes;
+  state.userProfile.planTimeSource = "ai";
+  if (plan.goal) {
+    state.userProfile.currentGoal = plan.goal;
+    state.userProfile.motivation = plan.goal;
+  }
+  saveProfile();
+  syncWarningMotivationalDOM();
+
+  const title = document.getElementById("goal-plan-title");
+  if (title) title.textContent = "今日三步计划 · AI 已生成";
+
+  const card = document.getElementById("goal-coach-popup");
+  if (card) {
+    card.style.display = "flex";
+    card.classList.remove("plan-updated");
+    void card.offsetWidth;
+    card.classList.add("plan-updated");
+    card.scrollIntoView({ behavior: PREFERS_REDUCED_MOTION ? "auto" : "smooth", block: "center" });
+    window.setTimeout(() => card.classList.remove("plan-updated"), 1800);
+  }
+}
+
+async function generatePlanFromChat() {
+  if (chatState.busy) return;
+
+  const userMessages = chatState.history.filter(item => item.role === "user");
+  if (!userMessages.length) {
+    appendChatBubble("assistant", "先和我说说你想完成什么，我再把它整理成三步计划。");
+    return;
+  }
+
+  const button = document.getElementById("ai-generate-plan");
+  const originalLabel = button ? button.innerHTML : "";
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<span aria-hidden="true">…</span><span>正在整理三步计划</span>';
+  }
+
+  const thinking = appendChatBubble("assistant", "我来把刚才聊到的事情，收束成今天能执行的三步。");
+  chatState.busy = true;
+
+  const planningPrompt = `你是 Tryrevive 的行动规划助手。请根据对话判断用户当前最想完成的一件事，并拆成今天可以依次执行的三个具体步骤，同时根据任务复杂度估算每一步所需分钟数。
+要求：
+1. 每一步都必须是可立即执行的动作，不是口号；
+2. 第一步应在 5 分钟内能启动；
+3. 每步不超过 24 个汉字；
+4. minutes 必须是 1 到 240 的整数，结合任务真实工作量估算，不要三步都给相同时间；
+5. 只返回 JSON，不要 Markdown，不要解释；
+格式：{"goal":"目标","steps":[{"text":"第一步","minutes":10},{"text":"第二步","minutes":25},{"text":"第三步","minutes":40}]}`;
+
+  try {
+    const recentMessages = chatState.history.slice(-20);
+    const plan = await requestGeneratedPlan(planningPrompt, recentMessages);
+    applyGeneratedPlan(plan);
+    thinking.textContent = `计划和预计时间已经放到“今日三步计划”里：\n1. ${plan.steps[0].text}（${plan.steps[0].minutes} 分钟）\n2. ${plan.steps[1].text}（${plan.steps[1].minutes} 分钟）\n3. ${plan.steps[2].text}（${plan.steps[2].minutes} 分钟）`;
+    chatState.history.push({ role: "assistant", content: thinking.textContent });
+    window.setTimeout(() => toggleAIChat(false), 900);
+  } catch (err) {
+    console.warn("AI plan generation failed:", err);
+    thinking.textContent = `计划生成失败。${describeAIError(err)}`;
+  } finally {
+    chatState.busy = false;
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = originalLabel;
+    }
+  }
+}
+
 // 把连接失败翻译成用户能看懂、能行动的提示
 function describeAIError(err) {
-  const proxyUrl = getAIProxyUrl();
-  const hasKey = !!state.userProfile.apiKey;
   const msg = (err && err.message) || "";
 
-  if (!proxyUrl && !hasKey) {
-    return "（还没接通 AI：请在「设置偏好」里填入 AI 代理地址或 API Key）";
+  if (/plan_format_invalid/i.test(msg)) {
+    return "（AI 返回的计划格式仍不完整，请再点一次生成）";
   }
+
   if (/\b(401|403)\b/.test(msg)) {
-    return "（AI 拒绝了请求：API Key 无效或代理未授权本站，请检查「设置偏好」）";
+    return "（AI 服务暂未授权当前站点，请联系 Tryrevive 管理员）";
   }
   if (/\b429\b/.test(msg)) {
     return "（AI 额度暂时受限，休息一下再来吧）";
@@ -2695,9 +3023,7 @@ function describeAIError(err) {
     return "（AI 服务器临时开小差了，稍等片刻再试）";
   }
   if (/failed to fetch|networkerror|load failed/i.test(msg) || err instanceof TypeError) {
-    return proxyUrl
-      ? "（连不上代理服务器：请确认 Worker 已部署、地址填写正确）"
-      : "（网络无法直达 api.anthropic.com——国内环境通常会这样。建议部署 Cloudflare Worker 代理，然后在「设置偏好」填入代理地址）";
+    return "（暂时连不上 Tryrevive AI 服务，请检查网络后重试）";
   }
   return `（连接失败：${msg || "未知原因"}，稍后再试试）`;
 }
@@ -2828,6 +3154,13 @@ function triggerBlockerWarning(overtimeSeconds) {
 
 // --- 18. Initial Boot Up & DOM Events binding ---
 document.addEventListener("DOMContentLoaded", () => {
+  initDraggableDeskPet();
+
+  ["intercept-step1-minutes", "intercept-step2-minutes", "intercept-step3-minutes"].forEach(id => {
+    const input = document.getElementById(id);
+    if (input) input.addEventListener("input", syncInterceptTotalMinutes);
+  });
+
   const goalStepInput = document.getElementById("goal-first-step-input");
   if (goalStepInput) {
     goalStepInput.addEventListener("change", () => {
@@ -2872,7 +3205,7 @@ document.addEventListener("DOMContentLoaded", () => {
           siteName = "搜索网页";
         }
 
-        triggerShortcutRedirect(siteName, url);
+        triggerShortcutRedirect(siteName, url, PLATFORM_SEARCH[platform] ? query : "");
       }
     });
   }
@@ -2910,7 +3243,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function setAvatarState(stateName) {
   state.avatarState = stateName;
-  
+
   if (stateName === "black") state.avatarAction = "cry";
   else if (stateName === "white") state.avatarAction = "jump";
   else state.avatarAction = "walk";
@@ -2918,7 +3251,7 @@ function setAvatarState(stateName) {
   const badgeText = document.getElementById("badge-state-name");
   const badgeContainer = document.getElementById("state-badge-container");
   const rebornBanner = document.getElementById("warning-reborn-banner");
-  
+
   if (badgeText) {
     badgeText.textContent = stateName === "black" ? "重度沉迷" : (stateName === "white" ? "自律重生" : "正常疗愈");
   }

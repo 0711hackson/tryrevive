@@ -1,3 +1,3 @@
-name = "tryrevive-ai"
+name = "tryrevive-ai-deepseek"
 main = "worker.js"
 compatibility_date = "2026-01-01"

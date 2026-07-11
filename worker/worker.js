@@ -1,96 +1,63 @@
 /**
- * tryrevive AI 代理 — Cloudflare Worker
- * 作用：把前端的对话请求转发给 DeepSeek API（OpenAI 兼容格式）。
- * API Key 只存在 Worker 的加密 Secret 里，永远不出现在网页代码中。
+ * Tryrevive DeepSeek AI proxy.
+ * DEEPSEEK_API_KEY must be stored as a Cloudflare Worker secret.
  */
 
-const ALLOWED_ORIGINS = [
+const ALLOWED_ORIGINS = new Set([
   "https://tryrevive.online",
   "https://www.tryrevive.online",
-  "http://tryrevive.online",
-  "http://www.tryrevive.online",
   "https://0711hackson.github.io",
   "https://sophia-yuanyuan.github.io",
   "http://localhost:8000",
   "http://127.0.0.1:8000",
   "http://localhost:8080",
   "http://127.0.0.1:8080"
-];
+]);
 
 const DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions";
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const MAX_TOKENS_CAP = 1024;      // 单次回复上限，防止额度被大额消耗
-const MAX_MESSAGES = 30;          // 单次请求最多携带的历史条数
-
-// 选择可用的上游：优先 DeepSeek，其次 Anthropic（哪个 Secret 配置正确用哪个）
-function pickProvider(env) {
-  const ds = (env.DEEPSEEK_API_KEY || "").trim();
-  const an = (env.ANTHROPIC_API_KEY || "").trim();
-  if (ds.length > 10) return { name: "deepseek", key: ds };
-  if (an.length > 10) return { name: "anthropic", key: an };
-  return null;
-}
-
-async function callAnthropic(apiKey, { max_tokens, system, messages }) {
-  const upstream = await fetch(ANTHROPIC_URL, {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens,
-      system: system || undefined,
-      messages
-    })
-  });
-  const text = await upstream.text();
-  return { status: upstream.status, text };
-}
+const MODEL = "deepseek-chat";
+const MAX_TOKENS_CAP = 1024;
+const MAX_MESSAGES = 30;
+const MAX_MESSAGE_CHARS = 6000;
+const MAX_SYSTEM_CHARS = 4000;
+const MAX_BODY_BYTES = 96 * 1024;
+const UPSTREAM_TIMEOUT_MS = 30000;
 
 function corsHeaders(origin) {
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "content-type",
-    "Access-Control-Max-Age": "86400"
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin"
   };
 }
 
-async function callDeepSeek(apiKey, payload) {
-  const upstream = await fetch(DEEPSEEK_URL, {
-    method: "POST",
-    headers: {
-      "authorization": "Bearer " + apiKey,
-      "content-type": "application/json"
-    },
-    body: JSON.stringify(payload)
+function jsonResponse(origin, status, body) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8", ...corsHeaders(origin) }
   });
-  const text = await upstream.text();
-  return { status: upstream.status, text };
+}
+
+function normalizeMessages(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(-MAX_MESSAGES)
+    .filter(item => item && (item.role === "user" || item.role === "assistant"))
+    .map(item => ({
+      role: item.role,
+      content: typeof item.content === "string"
+        ? item.content.slice(0, MAX_MESSAGE_CHARS)
+        : ""
+    }))
+    .filter(item => item.content.trim());
 }
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-
-    // ---- 临时诊断端点（定位问题后移除） ----
-    if (request.method === "GET" && url.pathname === "/debug") {
-      const probe = { model: "deepseek-chat", max_tokens: 1, messages: [{ role: "user", content: "hi" }] };
-      const real = await callDeepSeek((env.DEEPSEEK_API_KEY || "").trim(), probe);
-      const fake = await callDeepSeek("sk-fake-key-for-network-test", probe);
-      const keyRaw = env.DEEPSEEK_API_KEY || "";
-      return new Response(JSON.stringify({
-        keyInfo: { defined: !!env.DEEPSEEK_API_KEY, length: keyRaw.length, startsWithSk: keyRaw.trim().startsWith("sk-") },
-        realKeyCall: { status: real.status, body: real.text.slice(0, 300) },
-        fakeKeyCall: { status: fake.status, body: fake.text.slice(0, 300) }
-      }, null, 2), { headers: { "content-type": "application/json" } });
-    }
-
     const origin = request.headers.get("Origin") || "";
-    const allowed = ALLOWED_ORIGINS.includes(origin);
+    const allowed = ALLOWED_ORIGINS.has(origin);
 
     if (request.method === "OPTIONS") {
       return new Response(null, {
@@ -100,75 +67,101 @@ export default {
     }
 
     if (!allowed) {
-      return new Response(JSON.stringify({ error: "origin not allowed" }), { status: 403 });
-    }
-    if (request.method !== "POST") {
-      return new Response(JSON.stringify({ error: "POST only" }), {
-        status: 405, headers: corsHeaders(origin)
+      return new Response(JSON.stringify({ error: "origin_not_allowed" }), {
+        status: 403,
+        headers: { "content-type": "application/json; charset=utf-8" }
       });
+    }
+
+    if (request.method !== "POST") {
+      return jsonResponse(origin, 405, { error: "method_not_allowed" });
+    }
+
+    const declaredLength = Number(request.headers.get("content-length") || 0);
+    if (declaredLength > MAX_BODY_BYTES) {
+      return jsonResponse(origin, 413, { error: "request_too_large" });
+    }
+
+    const apiKey = (env.DEEPSEEK_API_KEY || "").trim();
+    if (!apiKey) {
+      return jsonResponse(origin, 503, { error: "deepseek_not_configured" });
     }
 
     let body;
-    try { body = await request.json(); } catch {
-      return new Response(JSON.stringify({ error: "invalid json" }), {
-        status: 400, headers: corsHeaders(origin)
-      });
+    try {
+      body = await request.json();
+    } catch {
+      return jsonResponse(origin, 400, { error: "invalid_json" });
     }
 
-    const max_tokens = Math.min(Number(body.max_tokens) || 512, MAX_TOKENS_CAP);
-    const messages = Array.isArray(body.messages) ? body.messages.slice(-MAX_MESSAGES) : [];
-    const system = typeof body.system === "string" ? body.system.slice(0, 4000) : "";
-
-    if (!messages.length) {
-      return new Response(JSON.stringify({ error: "messages required" }), {
-        status: 400, headers: corsHeaders(origin)
-      });
+    const messages = normalizeMessages(body.messages);
+    if (!messages.length || messages[0].role !== "user") {
+      return jsonResponse(origin, 400, { error: "valid_user_message_required" });
     }
 
-    const provider = pickProvider(env);
-    if (!provider) {
-      return new Response(JSON.stringify({ error: "no upstream api key configured" }), {
-        status: 500, headers: corsHeaders(origin)
+    const system = typeof body.system === "string"
+      ? body.system.slice(0, MAX_SYSTEM_CHARS).trim()
+      : "";
+    const maxTokens = Math.min(Math.max(Number(body.max_tokens) || 512, 1), MAX_TOKENS_CAP);
+    const responseFormat = body.response_format && body.response_format.type === "json_object"
+      ? { type: "json_object" }
+      : null;
+    const upstreamMessages = system
+      ? [{ role: "system", content: system }, ...messages]
+      : messages;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+
+    try {
+      const upstream = await fetch(DEEPSEEK_URL, {
+        method: "POST",
+        headers: {
+          "authorization": `Bearer ${apiKey}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: maxTokens,
+          messages: upstreamMessages,
+          ...(responseFormat ? { response_format: responseFormat } : {})
+        }),
+        signal: controller.signal
       });
-    }
 
-    let upstream, finalBody;
+      const raw = await upstream.text();
+      let data = null;
+      try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
 
-    if (provider.name === "anthropic") {
-      // Anthropic 原生格式，响应已是 {content:[{text}]}
-      upstream = await callAnthropic(provider.key, { max_tokens, system, messages });
-      finalBody = upstream.text ||
-        JSON.stringify({ error: `anthropic upstream ${upstream.status} with empty body` });
-    } else {
-      // DeepSeek（OpenAI 兼容）：system 作为 messages 首条
-      const messagesWithSystem = system
-        ? [{ role: "system", content: system }, ...messages]
-        : messages;
-
-      upstream = await callDeepSeek(provider.key, {
-        model: "deepseek-chat",
-        max_tokens,
-        messages: messagesWithSystem
-      });
-
-      const responseBody = upstream.text ||
-        JSON.stringify({ error: `deepseek upstream ${upstream.status} with empty body` });
-
-      // 转换成前端期待的 Anthropic 格式 {content:[{text}]}
-      finalBody = responseBody;
-      if (upstream.status === 200) {
-        try {
-          const data = JSON.parse(responseBody);
-          const text = data && data.choices && data.choices[0] && data.choices[0].message
-            ? data.choices[0].message.content : "";
-          finalBody = JSON.stringify({ content: [{ type: "text", text }] });
-        } catch (e) { /* 保留原始响应 */ }
+      if (!upstream.ok) {
+        return jsonResponse(origin, upstream.status, {
+          error: "deepseek_request_failed",
+          upstreamStatus: upstream.status,
+          detail: data && data.error && data.error.message
+            ? String(data.error.message).slice(0, 300)
+            : "DeepSeek returned an error"
+        });
       }
-    }
 
-    return new Response(finalBody, {
-      status: upstream.status,
-      headers: { "content-type": "application/json", ...corsHeaders(origin) }
-    });
+      const text = data && data.choices && data.choices[0] && data.choices[0].message
+        ? data.choices[0].message.content
+        : "";
+      if (!text) {
+        return jsonResponse(origin, 502, { error: "invalid_deepseek_response" });
+      }
+
+      // Preserve the response shape already consumed by the Tryrevive frontend.
+      return jsonResponse(origin, 200, {
+        content: [{ type: "text", text }],
+        model: MODEL
+      });
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        return jsonResponse(origin, 504, { error: "deepseek_timeout" });
+      }
+      return jsonResponse(origin, 502, { error: "deepseek_unreachable" });
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 };
