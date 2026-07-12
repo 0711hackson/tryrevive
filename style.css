@@ -1230,13 +1230,47 @@
   }
 
   .plan-total-time {
-    display: flex;
-    align-items: center;
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
     min-height: 54px;
-    cursor: default;
+    cursor: text;
     color: var(--accent-light);
     font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
     background: color-mix(in srgb, var(--accent) 7%, rgba(0, 0, 0, 0.18));
+  }
+
+  .plan-total-time-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0.65rem;
+    width: 100%;
+  }
+
+  .plan-total-confirm {
+    flex: 0 0 88px;
+    min-height: 54px;
+    padding: 0.75rem 1rem;
+    font-size: 0.86rem;
+    white-space: nowrap;
+  }
+
+  .plan-total-confirm.is-confirmed {
+    filter: brightness(1.08);
+    transform: scale(0.98);
+  }
+
+  .plan-total-time::-webkit-inner-spin-button,
+  .plan-total-time::-webkit-outer-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
+  }
+
+  .plan-total-time:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    outline-offset: 2px;
   }
 
   .dialog-title {

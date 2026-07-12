@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@700&family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Noto+Serif+SC:wght@300;500&family=Ma+Shan+Zheng&display=swap">
-  <link rel="stylesheet" href="style.css?v=20260711-liquid-glass-pet-local-v3">
+  <link rel="stylesheet" href="style.css?v=20260712-editable-plan-total-local-v1">
 </head>
 <body>
 
@@ -29,26 +29,28 @@
 
         <div class="form-group" style="margin-top: 1rem;">
           <label class="input-label" for="intercept-duration">三步计划预计总时间 (分钟)</label>
-          <output id="intercept-duration" class="text-input plan-total-time" aria-live="polite">0</output>
-          <span class="field-helper">自动等于下面三个任务预计时间的总和。</span>
+          <div class="plan-total-time-row">
+            <input id="intercept-duration" class="text-input plan-total-time" type="number" min="0" max="720" step="1" value="0" inputmode="numeric">
+            <button id="intercept-duration-confirm" type="button" class="btn-primary plan-total-confirm" onclick="confirmInterceptTotalMinutes()">确认</button>
+          </div>
         </div>
 
         <div class="form-group plan-step-editor">
           <label class="input-label" for="intercept-step1">今日计划的第一步是？</label>
           <input type="text" id="intercept-step1" class="text-input" placeholder="例如：列出今天要完成的最小任务" autocomplete="off">
-          <label class="step-minutes-editor" for="intercept-step1-minutes"><span>预计用时</span><span><input id="intercept-step1-minutes" type="number" min="0" max="240" value="0" inputmode="numeric"> 分钟</span></label>
+          <label class="step-minutes-editor" for="intercept-step1-minutes"><span>预计用时</span><span><input id="intercept-step1-minutes" type="number" min="0" max="240" step="1" value="0" inputmode="numeric"> 分钟</span></label>
         </div>
 
         <div class="form-group plan-step-editor">
           <label class="input-label" for="intercept-step2">今日计划的第二步是？</label>
           <input type="text" id="intercept-step2" class="text-input" placeholder="例如：整理素材，提取排版草图" autocomplete="off">
-          <label class="step-minutes-editor" for="intercept-step2-minutes"><span>预计用时</span><span><input id="intercept-step2-minutes" type="number" min="0" max="240" value="0" inputmode="numeric"> 分钟</span></label>
+          <label class="step-minutes-editor" for="intercept-step2-minutes"><span>预计用时</span><span><input id="intercept-step2-minutes" type="number" min="0" max="240" step="1" value="0" inputmode="numeric"> 分钟</span></label>
         </div>
 
         <div class="form-group plan-step-editor">
           <label class="input-label" for="intercept-step3">今日计划的第三步是？</label>
           <input type="text" id="intercept-step3" class="text-input" placeholder="例如：开始动手设计第一页 Canvas" autocomplete="off">
-          <label class="step-minutes-editor" for="intercept-step3-minutes"><span>预计用时</span><span><input id="intercept-step3-minutes" type="number" min="0" max="240" value="0" inputmode="numeric"> 分钟</span></label>
+          <label class="step-minutes-editor" for="intercept-step3-minutes"><span>预计用时</span><span><input id="intercept-step3-minutes" type="number" min="0" max="240" step="1" value="0" inputmode="numeric"> 分钟</span></label>
         </div>
       </div>
 
@@ -481,6 +483,6 @@
 
   </main>
 
-    <script src="app.js?v=20260711-liquid-glass-pet-local-v4"></script>
+    <script src="app.js?v=20260712-plan-total-confirm-local-v3"></script>
 </body>
 </html>

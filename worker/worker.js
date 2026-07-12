@@ -11,8 +11,22 @@ const ALLOWED_ORIGINS = new Set([
   "http://localhost:8000",
   "http://127.0.0.1:8000",
   "http://localhost:8080",
-  "http://127.0.0.1:8080"
+  "http://127.0.0.1:8080",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173"
 ]);
+
+function isAllowedOrigin(origin, requestUrl) {
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  if (new URL(requestUrl).hostname !== "127.0.0.1") return false;
+  try {
+    const originUrl = new URL(origin);
+    return originUrl.protocol === "http:"
+      && (originUrl.hostname === "localhost" || originUrl.hostname === "127.0.0.1");
+  } catch {
+    return false;
+  }
+}
 
 const DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions";
 const MODEL = "deepseek-chat";
@@ -57,7 +71,7 @@ function normalizeMessages(value) {
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
-    const allowed = ALLOWED_ORIGINS.has(origin);
+    const allowed = isAllowedOrigin(origin, request.url);
 
     if (request.method === "OPTIONS") {
       return new Response(null, {

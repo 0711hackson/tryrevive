@@ -2404,6 +2404,67 @@ function normalizeEstimatedMinutes(value, fallback = 0) {
   return Number.isFinite(parsed) ? Math.min(240, Math.max(0, parsed)) : fallback;
 }
 
+function distributeMinutesByRatio(totalMinutes, currentMinutes, minimums = [0, 0, 0]) {
+  const parsedTotal = Math.round(Number(totalMinutes));
+  const normalizedMinimums = minimums.map(minutes => normalizeEstimatedMinutes(minutes, 0));
+  const minimumTotal = normalizedMinimums.reduce((sum, minutes) => sum + minutes, 0);
+  const targetTotal = Number.isFinite(parsedTotal)
+    ? Math.min(720, Math.max(minimumTotal, parsedTotal))
+    : minimumTotal;
+  const normalizedMinutes = currentMinutes.map(minutes => normalizeEstimatedMinutes(minutes, 0));
+  const currentTotal = normalizedMinutes.reduce((sum, minutes) => sum + minutes, 0);
+  if (targetTotal === currentTotal) return normalizedMinutes;
+  const weights = currentTotal > 0 ? normalizedMinutes : [1, 1, 1];
+  const weightTotal = weights.reduce((sum, minutes) => sum + minutes, 0);
+  const allocatedIdealMinutes = weights.map(weight => targetTotal * weight / weightTotal);
+  const nextMinutes = allocatedIdealMinutes.map((minutes, index) => Math.min(
+    240,
+    Math.max(normalizedMinimums[index], Math.floor(minutes))
+  ));
+  let remainder = targetTotal - nextMinutes.reduce((sum, minutes) => sum + minutes, 0);
+
+  const priority = allocatedIdealMinutes
+    .map((minutes, index) => ({ index, fraction: minutes - Math.floor(minutes) }))
+    .sort((a, b) => b.fraction - a.fraction || a.index - b.index);
+
+  while (remainder < 0) {
+    let removed = false;
+    for (const item of priority) {
+      if (remainder === 0) break;
+      if (nextMinutes[item.index] <= normalizedMinimums[item.index]) continue;
+      nextMinutes[item.index] -= 1;
+      remainder += 1;
+      removed = true;
+    }
+    if (!removed) break;
+  }
+
+  while (remainder > 0) {
+    const availablePriority = priority
+      .filter(item => nextMinutes[item.index] < 240)
+      .sort((a, b) => {
+        const aIsZeroWeight = weights[a.index] === 0 ? 1 : 0;
+        const bIsZeroWeight = weights[b.index] === 0 ? 1 : 0;
+        const aWasCapped = allocatedIdealMinutes[a.index] > 240 ? 1 : 0;
+        const bWasCapped = allocatedIdealMinutes[b.index] > 240 ? 1 : 0;
+        return aIsZeroWeight - bIsZeroWeight
+          || aWasCapped - bWasCapped
+          || b.fraction - a.fraction
+          || a.index - b.index;
+      });
+    let distributed = false;
+    for (const item of availablePriority) {
+      if (remainder === 0) break;
+      nextMinutes[item.index] += 1;
+      remainder -= 1;
+      distributed = true;
+    }
+    if (!distributed) break;
+  }
+
+  return nextMinutes;
+}
+
 function normalizePlanStepIndex(value) {
   const parsed = Math.round(Number(value));
   return Number.isFinite(parsed) ? Math.min(4, Math.max(1, parsed)) : 1;
@@ -2475,14 +2536,69 @@ function getPlanTotalMinutes() {
 
 function syncInterceptTotalMinutes() {
   const durationInput = document.getElementById("intercept-duration");
-  const minuteInputs = [
+  const minuteInputs = getInterceptMinuteInputs();
+  const total = minuteInputs.reduce(
+    (sum, input) => sum + Math.max(
+      normalizeEstimatedMinutes(input ? input.min : 0, 0),
+      normalizeEstimatedMinutes(input ? input.value : 0, 0)
+    ),
+    0
+  );
+  if (durationInput) durationInput.value = total;
+  return total;
+}
+
+function normalizeInterceptMinuteInputs() {
+  const minuteInputs = getInterceptMinuteInputs();
+  minuteInputs.forEach(input => {
+    if (!input) return;
+    input.value = Math.max(
+      normalizeEstimatedMinutes(input.min, 0),
+      normalizeEstimatedMinutes(input.value, 0)
+    );
+  });
+  return syncInterceptTotalMinutes();
+}
+
+function getInterceptMinuteInputs() {
+  return [
     document.getElementById("intercept-step1-minutes"),
     document.getElementById("intercept-step2-minutes"),
     document.getElementById("intercept-step3-minutes")
   ];
-  const total = minuteInputs.reduce((sum, input) => sum + normalizeEstimatedMinutes(input ? input.value : 0, 0), 0);
-  if (durationInput) durationInput.value = total;
-  return total;
+}
+
+function distributeInterceptMinutes(totalMinutes) {
+  const minuteInputs = getInterceptMinuteInputs();
+  const minimums = minuteInputs.map(input => normalizeEstimatedMinutes(input ? input.min : 0, 0));
+  const currentMinutes = minuteInputs.map((input, index) => Math.max(
+    minimums[index],
+    normalizeEstimatedMinutes(input ? input.value : 0, minimums[index])
+  ));
+  const nextMinutes = distributeMinutesByRatio(totalMinutes, currentMinutes, minimums);
+  const redistributedTotal = nextMinutes.reduce((sum, minutes) => sum + minutes, 0);
+
+  minuteInputs.forEach((input, index) => {
+    if (input) input.value = nextMinutes[index];
+  });
+  return redistributedTotal;
+}
+
+function syncInterceptMinutesFromTotal() {
+  const durationInput = document.getElementById("intercept-duration");
+  if (!durationInput || durationInput.value === "") return;
+  const total = distributeInterceptMinutes(durationInput.value);
+  durationInput.value = total;
+}
+
+function confirmInterceptTotalMinutes() {
+  syncInterceptMinutesFromTotal();
+  const button = document.getElementById("intercept-duration-confirm");
+  if (!button) return;
+  button.classList.remove("is-confirmed");
+  void button.offsetWidth;
+  button.classList.add("is-confirmed");
+  window.setTimeout(() => button.classList.remove("is-confirmed"), 500);
 }
 
 function triggerShortcutRedirect(siteName, targetUrl, searchQuery = "") {
@@ -2520,13 +2636,18 @@ function triggerShortcutRedirect(siteName, targetUrl, searchQuery = "") {
   const step2MinutesInput = document.getElementById("intercept-step2-minutes");
   const step3MinutesInput = document.getElementById("intercept-step3-minutes");
   const durationInput = document.getElementById("intercept-duration");
+  const storedMinutes = [
+    normalizeEstimatedMinutes(state.userProfile.step1Minutes, 0),
+    normalizeEstimatedMinutes(state.userProfile.step2Minutes, 0),
+    normalizeEstimatedMinutes(state.userProfile.step3Minutes, 0)
+  ];
   if (step1Input) step1Input.value = state.userProfile.firstStep || "";
   if (step2Input) step2Input.value = state.userProfile.step2 || "";
   if (step3Input) step3Input.value = state.userProfile.step3 || "";
-  if (step1MinutesInput) step1MinutesInput.value = normalizeEstimatedMinutes(state.userProfile.step1Minutes, 0);
-  if (step2MinutesInput) step2MinutesInput.value = normalizeEstimatedMinutes(state.userProfile.step2Minutes, 0);
-  if (step3MinutesInput) step3MinutesInput.value = normalizeEstimatedMinutes(state.userProfile.step3Minutes, 0);
-  if (durationInput) durationInput.value = getPlanTotalMinutes();
+  if (step1MinutesInput) step1MinutesInput.value = storedMinutes[0];
+  if (step2MinutesInput) step2MinutesInput.value = storedMinutes[1];
+  if (step3MinutesInput) step3MinutesInput.value = storedMinutes[2];
+  if (durationInput) durationInput.value = storedMinutes.reduce((sum, minutes) => sum + minutes, 0);
   updateInterceptActionButton();
 
   if (modal) modal.classList.add("active");
@@ -2648,13 +2769,17 @@ function confirmRedirect() {
   const step2MinutesInput = document.getElementById("intercept-step2-minutes");
   const step3MinutesInput = document.getElementById("intercept-step3-minutes");
 
+  normalizeInterceptMinuteInputs();
   const totalMinutes = [step1MinutesInput, step2MinutesInput, step3MinutesInput]
     .reduce((sum, input) => sum + normalizeEstimatedMinutes(input ? input.value : 0, 0), 0);
-  const firstStepMinutes = normalizeEstimatedMinutes(
-    step1MinutesInput ? step1MinutesInput.value : 0,
-    0
-  );
-  if (selectEl) selectEl.value = totalMinutes;
+  const rawRequestedTotal = selectEl ? selectEl.value.trim() : "";
+  const requestedTotal = rawRequestedTotal === "" ? totalMinutes : Math.round(Number(rawRequestedTotal));
+  if (Number.isFinite(requestedTotal) && requestedTotal !== totalMinutes) {
+    distributeInterceptMinutes(requestedTotal);
+  }
+  const finalTotalMinutes = [step1MinutesInput, step2MinutesInput, step3MinutesInput]
+    .reduce((sum, input) => sum + normalizeEstimatedMinutes(input ? input.value : 0, 0), 0);
+  if (selectEl) selectEl.value = finalTotalMinutes;
 
   state.userProfile.firstStep = step1Input ? step1Input.value.trim() : state.userProfile.firstStep;
   state.userProfile.step2 = step2Input ? step2Input.value.trim() : "";
@@ -2947,8 +3072,14 @@ function initDraggableDeskPet() {
 // --- 17a. DeepSeek AI 客户端（统一入口） ---
 // 用户端永远不接触 API Key；所有请求固定经过 Tryrevive Cloudflare Worker。
 const AI_PROXY_URL = "https://tryrevive-ai-deepseek.tryrevive-deepseek.workers.dev";
+const LOCAL_AI_PROXY_URL = "http://127.0.0.1:8787";
 
 function getAIProxyUrl() {
+  const localProxyUrl = localStorage.getItem("tryrevive_ai_proxy_url");
+  if (localProxyUrl && /^https?:\/\//i.test(localProxyUrl)) return localProxyUrl;
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    return LOCAL_AI_PROXY_URL;
+  }
   return AI_PROXY_URL;
 }
 
@@ -3237,7 +3368,10 @@ function describeAIError(err) {
     return "（AI 服务器临时开小差了，稍等片刻再试）";
   }
   if (/failed to fetch|networkerror|load failed/i.test(msg) || err instanceof TypeError) {
-    return "（暂时连不上 Tryrevive AI 服务，请检查网络后重试）";
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+      return "（本地 AI 服务未启动，请确认 127.0.0.1:8787 正在运行）";
+    }
+    return "（当前网络连不上 Tryrevive AI 服务，请检查网络后重试）";
   }
   return `（连接失败：${msg || "未知原因"}，稍后再试试）`;
 }
@@ -3373,8 +3507,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   ["intercept-step1-minutes", "intercept-step2-minutes", "intercept-step3-minutes"].forEach(id => {
     const input = document.getElementById(id);
-    if (input) input.addEventListener("input", syncInterceptTotalMinutes);
+    if (input) {
+      input.addEventListener("input", syncInterceptTotalMinutes);
+      input.addEventListener("blur", normalizeInterceptMinuteInputs);
+    }
   });
+
+  const interceptDurationInput = document.getElementById("intercept-duration");
+  if (interceptDurationInput) {
+    interceptDurationInput.addEventListener("blur", syncInterceptMinutesFromTotal);
+    interceptDurationInput.addEventListener("keydown", event => {
+      if (event.key !== "Enter") return;
+      confirmInterceptTotalMinutes();
+      interceptDurationInput.select();
+    });
+  }
 
   const goalStepInput = document.getElementById("goal-first-step-input");
   if (goalStepInput) {
