@@ -317,6 +317,8 @@ const state = {
 
 // 系统“减少动态效果”偏好：用于给 canvas 动画降频/减量（CSS 媒体查询管不到 canvas）
 const PREFERS_REDUCED_MOTION = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+const IS_MOBILE_DEVICE = !!(window.matchMedia && window.matchMedia("(max-width: 520px), (pointer: coarse)").matches);
+const CANVAS_DPR = IS_MOBILE_DEVICE ? 1 : Math.min(window.devicePixelRatio || 1, 2);
 
 // --- 3. 音频合成系统 (Web Audio API Synthesizer) ---
 let audioCtx = null;
@@ -1174,17 +1176,17 @@ function initAvatarCanvas(canvasId, stateAnimKey) {
   const ctx = canvas.getContext("2d");
 
   const resize = () => {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = CANVAS_DPR;
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   };
   resize();
 
   let frame = 0;
   let lastDraw = 0;
-  const FRAME_MS = 1000 / 30; // 桌宠是缓慢动效，30fps 足够，省一半绘制开销
+  const FRAME_MS = 1000 / (IS_MOBILE_DEVICE ? 12 : 30);
   const tears = [];
   const sparkles = [];
 
@@ -1193,7 +1195,7 @@ function initAvatarCanvas(canvasId, stateAnimKey) {
     ctx.lineJoin = "round";
 
     // Chalk blur filter (粉粉的粉笔模糊质感)
-    ctx.filter = "blur(1.4px) contrast(1.15)";
+    ctx.filter = IS_MOBILE_DEVICE ? "none" : "blur(1.4px) contrast(1.15)";
 
     let speed = 0.12;
     if (stateName === "black") speed = 0.05;
@@ -1475,8 +1477,8 @@ function initAvatarCanvas(canvasId, stateAnimKey) {
     if (t - lastDraw < FRAME_MS) return;
     lastDraw = t;
 
-    const width = canvas.width / (window.devicePixelRatio || 1);
-    const height = canvas.height / (window.devicePixelRatio || 1);
+    const width = canvas.width / CANVAS_DPR;
+    const height = canvas.height / CANVAS_DPR;
 
     ctx.clearRect(0, 0, width, height);
 
@@ -3073,6 +3075,7 @@ function initDraggableDeskPet() {
 // 用户端永远不接触 API Key；所有请求固定经过 Tryrevive Cloudflare Worker。
 const AI_PROXY_URL = "https://tryrevive-ai-deepseek.tryrevive-deepseek.workers.dev";
 const LOCAL_AI_PROXY_URL = "http://127.0.0.1:8787";
+const AI_REQUEST_TIMEOUT_MS = 15000;
 
 function getAIProxyUrl() {
   const localProxyUrl = localStorage.getItem("tryrevive_ai_proxy_url");
@@ -3094,20 +3097,33 @@ async function callClaude({ system, messages, model, maxTokens, responseFormat }
     payload.response_format = { type: "json_object" };
   }
 
-  const resp = await fetch(getAIProxyUrl(), {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    const detail = data.detail || data.error || `HTTP ${resp.status}`;
-    throw new Error(`proxy HTTP ${resp.status}: ${detail}`);
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
+
+  try {
+    const resp = await fetch(getAIProxyUrl(), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const detail = data.detail || data.error || `HTTP ${resp.status}`;
+      throw new Error(`proxy HTTP ${resp.status}: ${detail}`);
+    }
+    if (data && data.content && data.content[0] && data.content[0].text) {
+      return data.content[0].text.trim();
+    }
+    throw new Error(data.error || "invalid proxy response");
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error("ai_request_timeout");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
-  if (data && data.content && data.content[0] && data.content[0].text) {
-    return data.content[0].text.trim();
-  }
-  throw new Error(data.error || "invalid proxy response");
 }
 
 async function fetchAICoachFeedback(promptType, callback) {
@@ -3180,7 +3196,7 @@ async function sendAIChat() {
   }
   chatState.history.push({ role: "user", content: apiText });
 
-  const thinking = appendChatBubble("assistant", "…");
+  const thinking = appendChatBubble("assistant", "正在连接 AI...");
   chatState.busy = true;
 
   const systemPrompt = `你是 tryrevive 的陪伴者——温和、清醒、简短。用户正在练习把注意力从推荐流夺回到自己的人生。
@@ -3356,6 +3372,9 @@ function describeAIError(err) {
 
   if (/plan_format_invalid/i.test(msg)) {
     return "（AI 返回的计划格式仍不完整，请再点一次生成）";
+  }
+  if (/ai_request_timeout/i.test(msg)) {
+    return "（等待超过 15 秒仍未收到回复，请检查网络后重试）";
   }
 
   if (/\b(401|403)\b/.test(msg)) {

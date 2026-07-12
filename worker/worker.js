@@ -35,7 +35,7 @@ const MAX_MESSAGES = 30;
 const MAX_MESSAGE_CHARS = 6000;
 const MAX_SYSTEM_CHARS = 4000;
 const MAX_BODY_BYTES = 96 * 1024;
-const UPSTREAM_TIMEOUT_MS = 30000;
+const UPSTREAM_TIMEOUT_MS = 14000;
 
 function corsHeaders(origin) {
   return {
