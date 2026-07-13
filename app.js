@@ -2768,31 +2768,38 @@ function copyTextWithSelection(text) {
   return copied;
 }
 
+let wechatSearchToastTimer = null;
+
 function showWechatSearchToast(title, text, isError = false) {
   const toast = document.getElementById("wechat-search-toast");
   const titleEl = document.getElementById("wechat-search-toast-title");
   const textEl = document.getElementById("wechat-search-toast-text");
   if (!toast) return;
+  if (wechatSearchToastTimer) {
+    window.clearTimeout(wechatSearchToastTimer);
+  }
   if (titleEl) titleEl.textContent = title;
   if (textEl) textEl.textContent = text;
   toast.classList.toggle("is-error", isError);
   toast.classList.add("show");
+  wechatSearchToastTimer = window.setTimeout(() => {
+    toast.classList.remove("show");
+    wechatSearchToastTimer = null;
+  }, 1000);
 }
 
 async function openWechatXiaohongshuSearch(searchQuery) {
   const query = (searchQuery || "").trim();
   const copied = await copyTextFromUserAction(query);
   if (!copied) {
-    showWechatSearchToast("复制失败", `请手动复制搜索词：${query}`, true);
+    showWechatSearchToast("复制失败", "请长按搜索词手动复制。", true);
     return false;
   }
 
   sessionStorage.setItem("tryrevive_return_pending", "1");
   cancelRedirect();
-  showWechatSearchToast("搜索词已复制", "即将前往小红书，进入 App 后粘贴搜索。");
-  window.setTimeout(() => {
-    window.location.assign("https://www.xiaohongshu.com/");
-  }, 900);
+  showWechatSearchToast("搜索词已复制", "若未自动打开，请从桌面打开小红书后粘贴搜索。");
+  window.location.href = buildXiaohongshuAppUrl(query);
   return true;
 }
 
