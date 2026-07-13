@@ -2525,7 +2525,7 @@ function updateInterceptActionButton() {
   button.textContent = getPlanStepData(getCurrentPlanStepIndex()).actionLabel;
 }
 
-function confirmKeywordSearch() {
+async function confirmKeywordSearch() {
   const searchQueryInput = document.getElementById("intercept-search-query");
   const searchHelper = document.getElementById("intercept-search-helper");
   const searchButton = document.getElementById("intercept-search-confirm");
@@ -2552,7 +2552,16 @@ function confirmKeywordSearch() {
     searchButton.disabled = true;
     searchButton.textContent = "打开中";
   }
-  const opened = openExternal(searchBuilder(query), { searchQuery: query });
+  const opened = isWechatBrowser() && isXiaohongshuUrl(searchBuilder(query))
+    ? await openWechatXiaohongshuSearch(query)
+    : openExternal(searchBuilder(query), { searchQuery: query });
+  if (!opened) {
+    if (searchButton) {
+      searchButton.disabled = false;
+      searchButton.textContent = "搜索";
+    }
+    return;
+  }
   window.setTimeout(() => {
     if (!searchButton || document.visibilityState === "hidden") return;
     searchButton.disabled = false;
@@ -2716,6 +2725,10 @@ function isMobileBrowser() {
     || (navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua));
 }
 
+function isWechatBrowser() {
+  return /MicroMessenger/i.test(navigator.userAgent || "");
+}
+
 function isXiaohongshuUrl(rawUrl) {
   try {
     const url = new URL(/^https?:\/\//i.test(rawUrl || "") ? rawUrl : "https://" + rawUrl);
@@ -2723,6 +2736,64 @@ function isXiaohongshuUrl(rawUrl) {
   } catch (e) {
     return false;
   }
+}
+
+function copyTextFromUserAction(text) {
+  if (copyTextWithSelection(text)) return Promise.resolve(true);
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text)
+      .then(() => true)
+      .catch(() => false);
+  }
+  return Promise.resolve(false);
+}
+
+function copyTextWithSelection(text) {
+  const input = document.createElement("textarea");
+  input.value = text;
+  input.setAttribute("readonly", "");
+  input.style.position = "fixed";
+  input.style.left = "-9999px";
+  input.style.opacity = "0";
+  document.body.appendChild(input);
+  input.select();
+  input.setSelectionRange(0, input.value.length);
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch (error) {
+    copied = false;
+  }
+  input.remove();
+  return copied;
+}
+
+function showWechatSearchToast(title, text, isError = false) {
+  const toast = document.getElementById("wechat-search-toast");
+  const titleEl = document.getElementById("wechat-search-toast-title");
+  const textEl = document.getElementById("wechat-search-toast-text");
+  if (!toast) return;
+  if (titleEl) titleEl.textContent = title;
+  if (textEl) textEl.textContent = text;
+  toast.classList.toggle("is-error", isError);
+  toast.classList.add("show");
+}
+
+async function openWechatXiaohongshuSearch(searchQuery) {
+  const query = (searchQuery || "").trim();
+  const copied = await copyTextFromUserAction(query);
+  if (!copied) {
+    showWechatSearchToast("复制失败", `请手动复制搜索词：${query}`, true);
+    return false;
+  }
+
+  sessionStorage.setItem("tryrevive_return_pending", "1");
+  cancelRedirect();
+  showWechatSearchToast("搜索词已复制", "即将前往小红书，进入 App 后粘贴搜索。");
+  window.setTimeout(() => {
+    window.location.assign("https://www.xiaohongshu.com/");
+  }, 900);
+  return true;
 }
 
 function buildXiaohongshuAppUrl(searchQuery = "") {
