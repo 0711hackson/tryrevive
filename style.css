@@ -1155,34 +1155,44 @@
     box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.1);
   }
 
-  .return-path-note {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.55rem;
-    margin-top: 0.85rem;
-    padding: 0.75rem 0.85rem;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.035);
-    color: rgba(255, 255, 255, 0.76);
-    font-size: 0.76rem;
-    line-height: 1.55;
-  }
-
-  .return-path-note > span:first-child {
-    flex: 0 0 auto;
-    color: var(--accent-light);
-    font-size: 1rem;
-    line-height: 1.15;
-  }
-
   .intercept-search-group {
-    margin-top: 1rem;
+    margin-top: 0.85rem;
     margin-bottom: 0;
   }
 
   .intercept-search-group[hidden] {
     display: none;
+  }
+
+  .intercept-search-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0.65rem;
+    width: 100%;
+  }
+
+  .intercept-search-row .text-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 54px;
+  }
+
+  .intercept-search-confirm {
+    flex: 0 0 88px;
+    min-height: 54px;
+    padding: 0.75rem 1rem;
+    font-size: 0.86rem;
+    border-radius: 14px;
+    white-space: nowrap;
+  }
+
+  .intercept-search-confirm:disabled {
+    cursor: wait;
+  }
+
+  .intercept-search-row .text-input[aria-invalid="true"] {
+    border-color: rgba(220, 38, 38, 0.58);
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
   }
 
   .field-helper {
@@ -2119,7 +2129,6 @@ select.text-input,
   color: #6f5cf0;
 }
 
-.return-path-note,
 .plan-step-editor,
 .ai-service-ready,
 .goal-plan-steps-display,
@@ -2129,7 +2138,6 @@ select.text-input,
   color: var(--text-muted);
 }
 
-.return-path-note > span:first-child,
 .plan-total-time,
 .ai-service-ready,
 .goal-time-pill,
@@ -2919,15 +2927,10 @@ button:active,
   color: #59667c;
 }
 
-.return-path-note,
 .plan-step-editor,
 .ai-service-ready {
   border-color: rgba(79, 94, 124, 0.11);
   background: rgba(255, 255, 255, 0.32);
-}
-
-.return-path-note {
-  border-radius: 14px;
 }
 
 .plan-step-editor {
@@ -3121,6 +3124,15 @@ button:active,
   #intercept-confirm-btn {
     flex: 1 1 auto !important;
     font-size: 0.84rem !important;
+  }
+
+  .intercept-search-row {
+    gap: 0.5rem;
+  }
+
+  .intercept-search-confirm {
+    flex-basis: 76px;
+    padding-inline: 0.7rem;
   }
 
   .floating-desk-pet-container {

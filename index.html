@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Tryrevive - 夺回你的注意力主权</title>
-  <link rel="stylesheet" href="style.css?v=20260712-mobile-performance-v1">
+  <link rel="stylesheet" href="style.css?v=20260714-intercept-search-action-v4">
 </head>
 <body>
 
@@ -16,12 +16,14 @@
       </div>
       <div class="dialog-body">
         <p>你即将前往 <strong id="intercept-site-name" style="color: var(--text-primary);">社交App</strong> 寻找建议。在陷入算法流之前，请为自己设防：</p>
-        <p class="return-path-note"><span aria-hidden="true">↩</span><span>普通浏览器会在当前标签打开，浏览结束后点击浏览器返回键，即可回到这里继续计划。</span></p>
 
         <div class="form-group intercept-search-group" id="intercept-search-group" hidden>
           <label class="input-label" for="intercept-search-query"><span id="intercept-search-site">平台</span>搜索关键词</label>
-          <input type="search" id="intercept-search-query" class="text-input" placeholder="例如：考研经验、复试准备" autocomplete="off">
-          <span class="field-helper">将直接打开搜索结果页，跳过首页推荐流。</span>
+          <div class="intercept-search-row">
+            <input type="search" id="intercept-search-query" class="text-input" placeholder="例如：考研经验、复试准备" autocomplete="off">
+            <button id="intercept-search-confirm" type="button" class="btn-primary intercept-search-confirm" onclick="confirmKeywordSearch()">搜索</button>
+          </div>
+          <span id="intercept-search-helper" class="field-helper" aria-live="polite">输入想查找的内容后点击搜索；也可以继续下方计划步骤。</span>
         </div>
 
         <div class="form-group" style="margin-top: 1rem;">
@@ -480,6 +482,6 @@
 
   </main>
 
-    <script src="app.js?v=20260714-xhs-search-deeplink-v3"></script>
+    <script src="app.js?v=20260714-intercept-search-action-v4"></script>
 </body>
 </html>

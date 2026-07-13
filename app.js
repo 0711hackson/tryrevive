@@ -2525,6 +2525,41 @@ function updateInterceptActionButton() {
   button.textContent = getPlanStepData(getCurrentPlanStepIndex()).actionLabel;
 }
 
+function confirmKeywordSearch() {
+  const searchQueryInput = document.getElementById("intercept-search-query");
+  const searchHelper = document.getElementById("intercept-search-helper");
+  const searchButton = document.getElementById("intercept-search-confirm");
+  const query = searchQueryInput ? searchQueryInput.value.trim() : "";
+
+  if (!query) {
+    if (searchQueryInput) {
+      searchQueryInput.setAttribute("aria-invalid", "true");
+      searchQueryInput.focus();
+    }
+    if (searchHelper) searchHelper.textContent = "请先输入想搜索的关键词。";
+    return;
+  }
+
+  const searchBuilder = PLATFORM_DIRECT_SEARCH[state.blockerTargetSite];
+  if (!searchBuilder) {
+    if (searchHelper) searchHelper.textContent = "当前平台暂不支持关键词直达。";
+    return;
+  }
+
+  if (searchQueryInput) searchQueryInput.removeAttribute("aria-invalid");
+  if (searchHelper) searchHelper.textContent = `即将搜索“${query}”`;
+  if (searchButton) {
+    searchButton.disabled = true;
+    searchButton.textContent = "打开中";
+  }
+  const opened = openExternal(searchBuilder(query), { searchQuery: query });
+  window.setTimeout(() => {
+    if (!searchButton || document.visibilityState === "hidden") return;
+    searchButton.disabled = false;
+    searchButton.textContent = opened ? "再次搜索" : "搜索";
+  }, isMobileBrowser() ? 1800 : 400);
+}
+
 function resetPlanProgress() {
   state.userProfile.planCurrentStep = 1;
   state.userProfile.planReturnHandledId = "";
@@ -2621,14 +2656,22 @@ function triggerShortcutRedirect(siteName, targetUrl, searchQuery = "") {
   const searchGroup = document.getElementById("intercept-search-group");
   const searchSite = document.getElementById("intercept-search-site");
   const searchQueryInput = document.getElementById("intercept-search-query");
+  const searchHelper = document.getElementById("intercept-search-helper");
   const supportsDirectSearch = !!PLATFORM_DIRECT_SEARCH[siteName];
   const activeStep = getPlanStepData(getCurrentPlanStepIndex());
   if (searchGroup) searchGroup.hidden = !supportsDirectSearch;
   if (searchSite) searchSite.textContent = siteName;
   if (searchQueryInput) {
+    searchQueryInput.removeAttribute("aria-invalid");
     searchQueryInput.value = supportsDirectSearch
       ? (searchQuery || activeStep.text || state.userProfile.firstStep || "")
       : "";
+  }
+  if (searchHelper) searchHelper.textContent = "输入想查找的内容后点击搜索；也可以继续下方计划步骤。";
+  const searchButton = document.getElementById("intercept-search-confirm");
+  if (searchButton) {
+    searchButton.disabled = false;
+    searchButton.textContent = "搜索";
   }
 
   const step2Input = document.getElementById("intercept-step2");
@@ -2694,6 +2737,7 @@ function openXiaohongshuApp(searchQuery = "") {
   const fallbackUrl = "https://www.xiaohongshu.com/explore";
 
   sessionStorage.setItem("tryrevive_return_pending", "1");
+  cancelRedirect();
   window.location.href = appUrl;
 
   window.setTimeout(() => {
@@ -2847,7 +2891,7 @@ function confirmRedirect() {
   }
 
   const searchBuilder = PLATFORM_DIRECT_SEARCH[state.blockerTargetSite];
-  // 当前步骤会作为平台搜索词；若当前步骤为空，再回退到手动关键词与旧输入。
+  // 计划按钮仍以当前步骤作为平台搜索词；右侧“搜索”按钮走独立的关键词直达流程。
   const activeStepQuery = activeStep.text.trim();
   const explicitQuery = searchQueryInput ? searchQueryInput.value.trim() : "";
   const fallbackQuery = step2Input ? step2Input.value.trim() : "";
@@ -3588,6 +3632,20 @@ document.addEventListener("DOMContentLoaded", () => {
       if (event.key !== "Enter") return;
       confirmInterceptTotalMinutes();
       interceptDurationInput.select();
+    });
+  }
+
+  const interceptSearchInput = document.getElementById("intercept-search-query");
+  if (interceptSearchInput) {
+    interceptSearchInput.addEventListener("input", () => {
+      interceptSearchInput.removeAttribute("aria-invalid");
+      const searchHelper = document.getElementById("intercept-search-helper");
+      if (searchHelper) searchHelper.textContent = "输入想查找的内容后点击搜索；也可以继续下方计划步骤。";
+    });
+    interceptSearchInput.addEventListener("keydown", event => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      confirmKeywordSearch();
     });
   }
 
