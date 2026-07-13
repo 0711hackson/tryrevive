@@ -2685,7 +2685,7 @@ function isXiaohongshuUrl(rawUrl) {
 function buildXiaohongshuAppUrl(searchQuery = "") {
   const query = (searchQuery || "").trim();
   return query
-    ? `xhsdiscover://search/result?keyword=${encodeURIComponent(query)}&source=tryrevive`
+    ? `xhsdiscover://search/result?keyword=${encodeURIComponent(query)}&target_search=notes&source=deeplink&mode=normal`
     : "xhsdiscover://home/explore";
 }
 
