@@ -2667,9 +2667,47 @@ function isInternalUrl(rawUrl) {
   return /^(\.\/)?lanshi\/[\w./-]*\.html?([?#][\w./?=&%-]*)?$/i.test((rawUrl || "").trim());
 }
 
+function isMobileBrowser() {
+  const ua = navigator.userAgent || "";
+  return /Android|iPhone|iPad|iPod|HarmonyOS|Mobile/i.test(ua)
+    || (navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua));
+}
+
+function isXiaohongshuUrl(rawUrl) {
+  try {
+    const url = new URL(/^https?:\/\//i.test(rawUrl || "") ? rawUrl : "https://" + rawUrl);
+    return url.hostname === "xiaohongshu.com" || url.hostname.endsWith(".xiaohongshu.com");
+  } catch (e) {
+    return false;
+  }
+}
+
+function buildXiaohongshuAppUrl(searchQuery = "") {
+  const query = (searchQuery || "").trim();
+  return query
+    ? `xhsdiscover://search/result?keyword=${encodeURIComponent(query)}&source=tryrevive`
+    : "xhsdiscover://home/explore";
+}
+
+function openXiaohongshuApp(searchQuery = "") {
+  const appUrl = buildXiaohongshuAppUrl(searchQuery);
+  const fallbackUrl = "https://www.xiaohongshu.com/explore";
+
+  sessionStorage.setItem("tryrevive_return_pending", "1");
+  window.location.href = appUrl;
+
+  window.setTimeout(() => {
+    // 成功打开 App 后，网页通常会进入 hidden；未隐藏说明 Scheme 被拦截或未安装。
+    if (document.visibilityState !== "hidden") {
+      window.location.assign(fallbackUrl);
+    }
+  }, 1600);
+  return true;
+}
+
 // 外部网址在当前标签打开，让没有安装扩展的普通浏览器也能通过原生返回键
 // 回到 Tryrevive。站内子应用仍使用新标签，保留主应用状态。
-function openExternal(rawUrl) {
+function openExternal(rawUrl, options = {}) {
   let url = (rawUrl || "").trim();
   // 站内页面（烂开始等）直接新标签打开，保留主应用状态
   if (isInternalUrl(url)) {
@@ -2681,6 +2719,11 @@ function openExternal(rawUrl) {
     a.click();
     a.remove();
     return true;
+  }
+  // 小红书的网页搜索结果页在手机端会返回 404；移动端改用官方 URL Scheme
+  // 唤起 App，并在唤起失败时回退到可用的手机首页。
+  if (isMobileBrowser() && isXiaohongshuUrl(url)) {
+    return openXiaohongshuApp(options.searchQuery || "");
   }
   if (!/^https?:\/\//i.test(url)) url = "https://" + url;
   try {
@@ -2847,7 +2890,13 @@ function confirmRedirect() {
 
   // 普通浏览器在当前标签打开，保留浏览器原生返回路径；安装扩展时，
   // 外部页面还会显示“返回 Tryrevive”悬浮按钮。
-  window.setTimeout(() => openExternal(destinationUrl), activeStep.minutes > 0 ? 120 : 0);
+  const openDestination = () => openExternal(destinationUrl, { searchQuery });
+  // App Scheme 必须尽量保留在用户点击产生的同步调用栈中，否则部分手机浏览器会拦截。
+  if (isMobileBrowser() && isXiaohongshuUrl(destinationUrl)) {
+    openDestination();
+  } else {
+    window.setTimeout(openDestination, activeStep.minutes > 0 ? 120 : 0);
+  }
 
   setAvatarState("black");
 
