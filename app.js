@@ -3072,8 +3072,8 @@ function initDraggableDeskPet() {
 }
 
 // --- 17a. DeepSeek AI 客户端（统一入口） ---
-// 用户端永远不接触 API Key；所有请求固定经过 Tryrevive Cloudflare Worker。
-const AI_PROXY_URL = "https://tryrevive-ai-deepseek.tryrevive-deepseek.workers.dev";
+// 用户端永远不接触 API Key；所有请求固定经过国内 SCF 代理。
+const AI_PROXY_URL = "https://1453581918-76wg9mn8nz.ap-guangzhou.tencentscf.com";
 const LOCAL_AI_PROXY_URL = "http://127.0.0.1:8787";
 const AI_REQUEST_TIMEOUT_MS = 15000;
 
