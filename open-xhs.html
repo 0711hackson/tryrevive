@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f8fc">
+  <title>打开小红书搜索 - Tryrevive</title>
+  <link rel="stylesheet" href="open-xhs.css?v=20260714-xhs-browser-bridge-v1">
+</head>
+<body>
+  <main class="bridge-shell">
+    <section class="bridge-panel" aria-labelledby="bridge-title">
+      <div class="brand-row">
+        <span class="brand-mark" aria-hidden="true">T</span>
+        <span>Tryrevive</span>
+      </div>
+
+      <div id="wechat-guide" class="wechat-guide" hidden>
+        <div class="menu-cue" aria-hidden="true">
+          <span>右上角</span>
+          <strong>···</strong>
+          <i></i>
+        </div>
+        <div class="status-chip">当前在微信内</div>
+        <h1 id="bridge-title">请在浏览器中打开</h1>
+        <p class="lead">点击右上角菜单，选择“在浏览器打开”，搜索词会跟着一起过去。</p>
+
+        <div class="keyword-block">
+          <span>准备搜索</span>
+          <strong id="wechat-keyword">小红书内容</strong>
+        </div>
+
+        <ol class="steps">
+          <li><span>1</span><p>点击右上角 <strong>···</strong></p></li>
+          <li><span>2</span><p>选择 <strong>在浏览器打开</strong></p></li>
+        </ol>
+      </div>
+
+      <div id="browser-guide" class="browser-guide" hidden>
+        <div class="status-chip ready">已进入浏览器</div>
+        <div class="xhs-icon" aria-hidden="true">小红书</div>
+        <h1>打开小红书搜索</h1>
+        <p class="lead">将直接进入以下关键词的搜索结果。</p>
+
+        <div class="keyword-block">
+          <span>搜索词</span>
+          <strong id="browser-keyword">小红书内容</strong>
+        </div>
+
+        <a id="open-xhs-button" class="primary-action" href="#">打开小红书搜索</a>
+        <p id="launch-status" class="launch-status" role="status" aria-live="polite">
+          正在尝试打开小红书…
+        </p>
+      </div>
+
+      <div id="missing-query" class="missing-query" hidden>
+        <h1>没有找到搜索词</h1>
+        <p class="lead">请返回 Tryrevive 重新输入要搜索的内容。</p>
+      </div>
+
+      <a class="back-link" href="./">返回 Tryrevive</a>
+    </section>
+  </main>
+  <script src="open-xhs.js?v=20260714-xhs-browser-bridge-v1"></script>
+</body>
+</html>

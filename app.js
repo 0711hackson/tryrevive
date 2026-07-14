@@ -2725,8 +2725,13 @@ function isMobileBrowser() {
     || (navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua));
 }
 
+function isLocalWechatPreview() {
+  const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  return isLocalhost && new URLSearchParams(location.search).get("wechat_preview") === "1";
+}
+
 function isWechatBrowser() {
-  return /MicroMessenger/i.test(navigator.userAgent || "");
+  return /MicroMessenger/i.test(navigator.userAgent || "") || isLocalWechatPreview();
 }
 
 function isXiaohongshuUrl(rawUrl) {
@@ -2738,68 +2743,20 @@ function isXiaohongshuUrl(rawUrl) {
   }
 }
 
-function copyTextFromUserAction(text) {
-  if (copyTextWithSelection(text)) return Promise.resolve(true);
-  if (navigator.clipboard && window.isSecureContext) {
-    return navigator.clipboard.writeText(text)
-      .then(() => true)
-      .catch(() => false);
+function buildXiaohongshuBridgeUrl(searchQuery = "") {
+  const bridgeUrl = new URL("open-xhs.html", window.location.href);
+  bridgeUrl.searchParams.set("q", (searchQuery || "").trim());
+  if (isLocalWechatPreview()) {
+    bridgeUrl.searchParams.set("wechat_preview", "1");
   }
-  return Promise.resolve(false);
+  return bridgeUrl.href;
 }
 
-function copyTextWithSelection(text) {
-  const input = document.createElement("textarea");
-  input.value = text;
-  input.setAttribute("readonly", "");
-  input.style.position = "fixed";
-  input.style.left = "-9999px";
-  input.style.opacity = "0";
-  document.body.appendChild(input);
-  input.select();
-  input.setSelectionRange(0, input.value.length);
-  let copied = false;
-  try {
-    copied = document.execCommand("copy");
-  } catch (error) {
-    copied = false;
-  }
-  input.remove();
-  return copied;
-}
-
-let wechatSearchToastTimer = null;
-
-function showWechatSearchToast(title, text, isError = false) {
-  const toast = document.getElementById("wechat-search-toast");
-  const titleEl = document.getElementById("wechat-search-toast-title");
-  const textEl = document.getElementById("wechat-search-toast-text");
-  if (!toast) return;
-  if (wechatSearchToastTimer) {
-    window.clearTimeout(wechatSearchToastTimer);
-  }
-  if (titleEl) titleEl.textContent = title;
-  if (textEl) textEl.textContent = text;
-  toast.classList.toggle("is-error", isError);
-  toast.classList.add("show");
-  wechatSearchToastTimer = window.setTimeout(() => {
-    toast.classList.remove("show");
-    wechatSearchToastTimer = null;
-  }, 1000);
-}
-
-async function openWechatXiaohongshuSearch(searchQuery) {
+function openWechatXiaohongshuSearch(searchQuery) {
   const query = (searchQuery || "").trim();
-  const copied = await copyTextFromUserAction(query);
-  if (!copied) {
-    showWechatSearchToast("复制失败", "请长按搜索词手动复制。", true);
-    return false;
-  }
-
   sessionStorage.setItem("tryrevive_return_pending", "1");
   cancelRedirect();
-  showWechatSearchToast("搜索词已复制", "若未自动打开，请从桌面打开小红书后粘贴搜索。");
-  window.location.href = buildXiaohongshuAppUrl(query);
+  window.location.assign(buildXiaohongshuBridgeUrl(query));
   return true;
 }
 
@@ -2845,6 +2802,9 @@ function openExternal(rawUrl, options = {}) {
   // 小红书的网页搜索结果页在手机端会返回 404；移动端改用官方 URL Scheme
   // 唤起 App，并在唤起失败时回退到可用的手机首页。
   if (isMobileBrowser() && isXiaohongshuUrl(url)) {
+    if (isWechatBrowser()) {
+      return openWechatXiaohongshuSearch(options.searchQuery || "");
+    }
     return openXiaohongshuApp(options.searchQuery || "");
   }
   if (!/^https?:\/\//i.test(url)) url = "https://" + url;

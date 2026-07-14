@@ -1128,57 +1128,6 @@
     transform: scale(1);
   }
 
-  .wechat-search-toast {
-    position: fixed;
-    left: 50%;
-    bottom: max(1.25rem, env(safe-area-inset-bottom));
-    z-index: 1600;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    width: min(360px, calc(100vw - 2rem));
-    padding: 0.9rem 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
-    background: rgba(20, 24, 32, 0.96);
-    color: #fff;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
-    opacity: 0;
-    visibility: hidden;
-    transform: translate(-50%, 12px);
-    transition: opacity 180ms ease, visibility 180ms ease, transform 180ms ease;
-    pointer-events: none;
-  }
-
-  .wechat-search-toast.show {
-    opacity: 1;
-    visibility: visible;
-    transform: translate(-50%, 0);
-  }
-
-  .wechat-search-toast.is-error {
-    background: rgba(124, 36, 36, 0.97);
-  }
-
-  .wechat-search-toast strong {
-    font-size: 0.9rem;
-    line-height: 1.35;
-  }
-
-  .wechat-search-toast span {
-    color: rgba(255, 255, 255, 0.76);
-    font-size: 0.76rem;
-    line-height: 1.45;
-    overflow-wrap: anywhere;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .wechat-search-toast {
-      transition: none;
-      transform: translate(-50%, 0);
-    }
-  }
-
   .ai-service-status {
     margin-bottom: 0;
   }
